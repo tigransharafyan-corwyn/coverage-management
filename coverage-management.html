@@ -263,6 +263,15 @@
   .views button:last-child{ border-radius:0 8px 8px 0; border-left:none;}
   .views button.on{ background:var(--accent-soft); color:var(--accent); border-color:var(--accent);}
 
+  /* top navigation tabs (second level) */
+  .tabbar { display:flex; gap:8px; margin-bottom:14px; flex-wrap:wrap; }
+  .navtab { display:inline-flex; align-items:center; gap:8px; border:1px solid var(--border-strong); background:#fff; border-radius:9px; padding:9px 15px; cursor:pointer; font-size:13px; font-weight:600; color:var(--text); }
+  .navtab:hover { border-color:var(--accent); color:var(--accent); }
+  .navtab.on { background:var(--accent); border-color:var(--accent); color:#fff; }
+  .navtab .nt-ic { font-size:14px; }
+  .navtab-badge { background:rgba(16,24,40,.08); color:var(--muted); border-radius:999px; padding:1px 8px; font-size:11px; font-weight:700; }
+  .navtab.on .navtab-badge { background:rgba(255,255,255,.25); color:#fff; }
+
   /* Miller columns */
   .mcols { display:flex; gap:14px; overflow-x:auto; padding:2px 2px 8px; align-items:flex-start; }
   .mcol { flex:0 0 318px; width:318px; border:1px solid var(--border); border-radius:10px; background:#fff; display:flex; flex-direction:column; max-height:600px; }
@@ -681,11 +690,9 @@ function render(){
 
   var html = '<div class="app">'
     + topbarHtml()
-    + '<div class="cov-shell">'
-      + sidebarHtml()
-      + '<div>'
-        + mainViewHtml()
-      + '</div>'
+    + navTabsHtml()
+    + '<div>'
+      + mainViewHtml()
     + '</div>'
     + '<div class="footer-note">Mock data · single-file prototype. Coverage, ordering, providers, templates, exclusions &amp; age-groups are illustrative — wire <code>NODES</code> to your coverage API to go live.</div>'
     + '</div>';
@@ -699,8 +706,7 @@ function render(){
 function topbarHtml(){
   var partnerOpts = PARTNERS.map(function(p){ return '<option value="'+p.id+'"'+(p.id===state.partner?' selected':'')+'>'+esc(p.name)+'</option>'; }).join("");
   return '<div class="topbar">'
-    + '<div><h1>Coverage Management</h1>'
-      + '<div class="sub">Enable/disable, order, feed providers, market templates, exclusions &amp; age-groups — live &amp; prematch in one place</div></div>'
+    + '<div><h1>Coverage Management</h1></div>'
     + '<div class="topbar-right">'
       + '<div class="ctx-field"><label>Partner</label><select class="input" id="partner-sel">'+partnerOpts+'</select></div>'
       + '<div class="ctx-field"><label>Channel view</label><div class="seg">'
@@ -733,24 +739,17 @@ function mainViewHtml(){
   return coverageMainHtml();
 }
 
-/* ---------- sidebar (iframe left menu) ---------- */
-function sidebarHtml(){
-  function item(view, ic, label, badge){
-    return '<div class="nav-item '+(state.view===view?"active":"")+'" data-view="'+view+'">'
-      + '<span class="ic">'+ic+'</span><span class="name">'+label+'</span>'
-      + (badge!=null?'<span class="badge">'+badge+'</span>':'')+'</div>';
+/* ---------- top-level navigation tabs ---------- */
+function navTabsHtml(){
+  function tab(view, ic, label, badge){
+    return '<button class="navtab '+(state.view===view?"on":"")+'" data-view="'+view+'">'
+      + '<span class="nt-ic">'+ic+'</span><span>'+label+'</span>'
+      + (badge!=null?'<span class="navtab-badge">'+badge+'</span>':'')+'</button>';
   }
-  return '<div class="panel sidebar">'
-    + '<div class="side-block">'
-      + '<div class="side-title">Menu</div>'
-      + item("coverage","🗂","Coverage", null)
-      + item("picked-tournaments","🏆","Picked Tournaments", PICKED_TOURNAMENTS.length)
-      + item("picked-events","⭐","Picked Events", PICKED_EVENTS.length)
-    + '</div>'
-    + '<div class="side-block">'
-      + '<div class="side-title">Partner</div>'
-      + '<div style="padding:6px 12px 12px"><div class="sub-muted" style="font-size:11px">Editing coverage for</div><div style="font-weight:650; margin-top:2px">'+esc(partnerName(state.partner))+'</div></div>'
-    + '</div>'
+  return '<div class="tabbar">'
+    + tab("coverage","🗂","Coverage", null)
+    + tab("picked-tournaments","🏆","Picked Tournaments", PICKED_TOURNAMENTS.length)
+    + tab("picked-events","⭐","Picked Events", PICKED_EVENTS.length)
   + '</div>';
 }
 
@@ -936,33 +935,44 @@ function detailsHtml(node){
   + '</div>';
 }
 
+/* priority spinner for an ordered pick list (PICKED_TOURNAMENTS / PICKED_EVENTS) */
+function pickSpinner(list, id, no, total){
+  return '<div class="spin" title="Priority — type a position or use the arrows">'
+    + '<input class="spin-in pick-prio" type="text" inputmode="numeric" value="'+no+'" data-pickprio-id="'+id+'" data-pickprio-list="'+list+'">'
+    + '<div class="spin-btns">'
+      + '<button data-pickprio-dir="up" data-pickprio-id="'+id+'" data-pickprio-list="'+list+'" '+(no<=1?'disabled':'')+'>▲</button>'
+      + '<button data-pickprio-dir="down" data-pickprio-id="'+id+'" data-pickprio-list="'+list+'" '+(no>=total?'disabled':'')+'>▼</button>'
+    + '</div></div>';
+}
+
 /* ---------- picked events view ---------- */
 function pickedEventsMainHtml(){
-  var items = PICKED_EVENTS.map(function(id){ return NODES[id]; }).filter(Boolean);
-  // sort by date
-  items.sort(function(a,b){ return (a.date||"").localeCompare(b.date||""); });
-  var cards = items.length===0
+  var ids = PICKED_EVENTS.slice();           // array order = priority
+  var total = ids.length;
+  var cards = total===0
     ? '<div class="empty-state">No picked events. Use “Add events” to build the list.</div>'
-    : items.map(function(n){
-        return '<div class="pe-card">'
-          + '<input type="checkbox" class="cb-sel" disabled>'
-          + '<div style="flex:1">'
+    : ids.map(function(id, i){
+        var n=NODES[id]; if(!n) return "";
+        return '<div class="pe-card" draggable="true" data-drag-pick="'+id+'" data-pick-list="event">'
+          + '<span class="drag" title="Drag to reorder">⠿</span>'
+          + pickSpinner("event", id, i+1, total)
+          + '<div style="flex:1; min-width:0">'
             + '<div class="pe-name">'+esc(n.name)+(n.isLiveNow?' <span class="live-pill">live now</span>':'')+'</div>'
             + '<div class="pe-path">'+esc(pathLabel(NODES[n.parentId]))+'</div>'
           + '</div>'
           + '<div class="pe-when">'+fmtWhen(n.date||BASE_DATE)+'</div>'
-          + '<button class="btn sm" data-jump-event="'+n.id+'">Open in coverage</button>'
-          + '<button class="btn sm danger" data-unpin-event="'+n.id+'">Remove</button>'
+          + '<button class="btn sm" data-jump-event="'+id+'">Open in coverage</button>'
+          + '<button class="btn sm danger" data-unpin-event="'+id+'">Remove</button>'
         + '</div>';
       }).join("");
 
   return '<div class="panel">'
-    + '<div class="panel-head"><h2>Picked Events</h2><span class="hint">a curated, fast-access list surfaced as a left-menu item in the iframe</span>'
+    + '<div class="panel-head"><h2>Picked Events</h2><span class="hint">drag or set a priority — order is mirrored in the iframe left tree</span>'
       + '<span class="spacer"></span>'
       + '<button class="btn primary" id="add-picked-event">+ Add events</button>'
     + '</div>'
     + '<div class="panel-body">'
-      + '<div class="info-banner blue">ℹ️ Picked events appear as a dedicated menu item in the player iframe’s left tree. Players reach them in one click without navigating the sports hierarchy.</div>'
+      + '<div class="info-banner blue">ℹ️ Picked events appear as a dedicated menu item in the player iframe’s left tree, in this priority order.</div>'
       + cards
     + '</div>'
   + '</div>';
@@ -970,28 +980,32 @@ function pickedEventsMainHtml(){
 
 /* ---------- picked tournaments view ---------- */
 function pickedTournamentsMainHtml(){
-  var items = PICKED_TOURNAMENTS.map(function(id){ return NODES[id]; }).filter(Boolean);
-  var cards = items.length===0
+  var ids = PICKED_TOURNAMENTS.slice();       // array order = priority
+  var total = ids.length;
+  var cards = total===0
     ? '<div class="empty-state">No top tournaments yet. Use “Add tournaments” to build the list.</div>'
-    : items.map(function(n){
-        return '<div class="pe-card">'
+    : ids.map(function(id, i){
+        var n=NODES[id]; if(!n) return "";
+        return '<div class="pe-card" draggable="true" data-drag-pick="'+id+'" data-pick-list="trn">'
+          + '<span class="drag" title="Drag to reorder">⠿</span>'
+          + pickSpinner("trn", id, i+1, total)
           + '<span class="ic" style="font-size:16px">🏆</span>'
-          + '<div style="flex:1">'
+          + '<div style="flex:1; min-width:0">'
             + '<div class="pe-name">'+esc(n.name)+'</div>'
             + '<div class="pe-path">'+esc(pathLabel(NODES[n.parentId]))+' · '+n.childIds.length+' events</div>'
           + '</div>'
-          + '<button class="btn sm" data-jump="'+n.id+'">Open in coverage</button>'
-          + '<button class="btn sm danger" data-unpin-trn="'+n.id+'">Remove</button>'
+          + '<button class="btn sm" data-jump="'+id+'">Open in coverage</button>'
+          + '<button class="btn sm danger" data-unpin-trn="'+id+'">Remove</button>'
         + '</div>';
       }).join("");
 
   return '<div class="panel">'
-    + '<div class="panel-head"><h2>Picked Tournaments</h2><span class="hint">top tournaments pinned to the top of the iframe left tree</span>'
+    + '<div class="panel-head"><h2>Picked Tournaments</h2><span class="hint">drag or set a priority — pinned to the top of the iframe left tree in this order</span>'
       + '<span class="spacer"></span>'
       + '<button class="btn primary" id="add-picked-trn">+ Add tournaments</button>'
     + '</div>'
     + '<div class="panel-body">'
-      + '<div class="info-banner blue">ℹ️ Top tournaments appear pinned at the top of the player iframe’s left tree, so players open their events directly without digging through the sports hierarchy.</div>'
+      + '<div class="info-banner blue">ℹ️ Top tournaments appear pinned at the top of the player iframe’s left tree, in this priority order, so players open their events directly.</div>'
       + cards
     + '</div>'
   + '</div>';
@@ -1326,6 +1340,13 @@ function dropReorder(dragNode, targetNode, after){
   sibs.forEach(function(n,k){ n.order=k; });
 }
 
+/* ---- pick-list reordering (PICKED_TOURNAMENTS / PICKED_EVENTS) ---- */
+function pickArr(list){ return list==="trn"?PICKED_TOURNAMENTS:PICKED_EVENTS; }
+function setPickArr(list, arr){ if(list==="trn")PICKED_TOURNAMENTS=arr; else PICKED_EVENTS=arr; }
+function movePick(list, id, dir){ var a=pickArr(list).slice(); var i=a.indexOf(id), j=dir==="up"?i-1:i+1; if(i<0||j<0||j>=a.length)return; a.splice(i,1); a.splice(j,0,id); setPickArr(list,a); }
+function setPickPos(list, id, pos){ var a=pickArr(list).slice(); var i=a.indexOf(id); if(i<0)return; pos=Math.max(1,Math.min(a.length,pos))-1; a.splice(i,1); a.splice(pos,0,id); setPickArr(list,a); }
+function dropPick(list, dragId, targetId, after){ if(dragId===targetId)return; var a=pickArr(list).slice(); a.splice(a.indexOf(dragId),1); var ti=a.indexOf(targetId)+(after?1:0); a.splice(ti,0,dragId); setPickArr(list,a); }
+
 function setChannelCascade(node, ch, val){
   node[ch].enabled=val;
   // cascade to descendants (set own flag so toggling parent back on restores)
@@ -1353,6 +1374,9 @@ root.addEventListener("click", function(e){
 
   // priority arrows (before row-select)
   var pr=t.closest("[data-prio]"); if(pr){ reorder(NODES[pr.getAttribute("data-prio-node")], pr.getAttribute("data-prio")); render(); return; }
+
+  // pick-list priority arrows
+  var ppr=t.closest("[data-pickprio-dir]"); if(ppr){ movePick(ppr.getAttribute("data-pickprio-list"), ppr.getAttribute("data-pickprio-id"), ppr.getAttribute("data-pickprio-dir")); render(); return; }
 
   // inherit-order toggle (per column)
   var inh=t.closest("[data-inherit]"); if(inh){ var pk=inh.getAttribute("data-inherit"); if(state.inheritOrder[pk]) delete state.inheritOrder[pk]; else state.inheritOrder[pk]=true; render(); return; }
@@ -1395,17 +1419,33 @@ root.addEventListener("input", function(e){
   if(e.target.id==="cov-search"){ state.search=e.target.value; render(); return; }
 });
 
-// commit priority typed into a spinner field
-function commitPrio(el){ var node=NODES[el.getAttribute("data-prio-node")]; if(!node)return; var v=parseInt(el.value,10); if(!isNaN(v)){ setOrderPosition(node, v); } render(); }
+// commit priority typed into a spinner field (coverage node or pick-list)
+function commitPrio(el){
+  var v=parseInt(el.value,10); if(isNaN(v)){ render(); return; }
+  if(el.getAttribute("data-pickprio-id")){ setPickPos(el.getAttribute("data-pickprio-list"), el.getAttribute("data-pickprio-id"), v); }
+  else { var node=NODES[el.getAttribute("data-prio-node")]; if(node) setOrderPosition(node, v); }
+  render();
+}
 root.addEventListener("change", function(e){ if(e.target.classList && e.target.classList.contains("spin-in")){ commitPrio(e.target); } });
 root.addEventListener("keydown", function(e){ if(e.key==="Enter" && e.target.classList && e.target.classList.contains("spin-in")){ e.preventDefault(); commitPrio(e.target); } });
 
-/* ----- drag & drop reordering ----- */
-var dragId=null;
-root.addEventListener("dragstart", function(e){ var r=e.target.closest("[data-drag-node]"); if(!r)return; dragId=r.getAttribute("data-drag-node"); e.dataTransfer.effectAllowed="move"; try{ e.dataTransfer.setData("text/plain", dragId); }catch(_){} r.classList.add("dragging"); });
-root.addEventListener("dragover", function(e){ if(!dragId)return; var r=e.target.closest("[data-drag-node]"); if(!r)return; e.preventDefault(); e.dataTransfer.dropEffect="move"; });
-root.addEventListener("drop", function(e){ if(!dragId)return; var r=e.target.closest("[data-drag-node]"); if(r){ e.preventDefault(); var tid=r.getAttribute("data-drag-node"); if(tid!==dragId){ var rect=r.getBoundingClientRect(); var after=e.clientY>rect.top+rect.height/2; dropReorder(NODES[dragId], NODES[tid], after); } } dragId=null; render(); });
-root.addEventListener("dragend", function(){ if(dragId){ dragId=null; render(); } });
+/* ----- drag & drop reordering (coverage columns AND pick lists) ----- */
+var dragId=null, dragPick=null;  // dragPick = {id, list}
+root.addEventListener("dragstart", function(e){
+  var r=e.target.closest("[data-drag-node]");
+  if(r){ dragId=r.getAttribute("data-drag-node"); e.dataTransfer.effectAllowed="move"; try{e.dataTransfer.setData("text/plain",dragId);}catch(_){} r.classList.add("dragging"); return; }
+  var rp=e.target.closest("[data-drag-pick]");
+  if(rp){ dragPick={id:rp.getAttribute("data-drag-pick"), list:rp.getAttribute("data-pick-list")}; e.dataTransfer.effectAllowed="move"; try{e.dataTransfer.setData("text/plain",dragPick.id);}catch(_){} rp.classList.add("dragging"); }
+});
+root.addEventListener("dragover", function(e){
+  if(dragId && e.target.closest("[data-drag-node]")){ e.preventDefault(); e.dataTransfer.dropEffect="move"; return; }
+  if(dragPick && e.target.closest("[data-drag-pick]")){ e.preventDefault(); e.dataTransfer.dropEffect="move"; }
+});
+root.addEventListener("drop", function(e){
+  if(dragId){ var r=e.target.closest("[data-drag-node]"); if(r){ e.preventDefault(); var tid=r.getAttribute("data-drag-node"); if(tid!==dragId){ var rc=r.getBoundingClientRect(); dropReorder(NODES[dragId], NODES[tid], e.clientY>rc.top+rc.height/2); } } dragId=null; render(); return; }
+  if(dragPick){ var rp=e.target.closest("[data-drag-pick]"); if(rp){ e.preventDefault(); var tpid=rp.getAttribute("data-drag-pick"); if(tpid!==dragPick.id){ var rc2=rp.getBoundingClientRect(); dropPick(dragPick.list, dragPick.id, tpid, e.clientY>rc2.top+rc2.height/2); } } dragPick=null; render(); }
+});
+root.addEventListener("dragend", function(){ if(dragId||dragPick){ dragId=null; dragPick=null; render(); } });
 
 /* ----- modal events ----- */
 modalRoot.addEventListener("click", function(e){
