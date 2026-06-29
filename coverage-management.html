@@ -263,6 +263,53 @@
   .views button:last-child{ border-radius:0 8px 8px 0; border-left:none;}
   .views button.on{ background:var(--accent-soft); color:var(--accent); border-color:var(--accent);}
 
+  /* Miller columns */
+  .mcols { display:flex; gap:14px; overflow-x:auto; padding:2px 2px 8px; align-items:flex-start; }
+  .mcol { flex:0 0 318px; width:318px; border:1px solid var(--border); border-radius:10px; background:#fff; display:flex; flex-direction:column; max-height:600px; }
+  .mcol-head { padding:9px 12px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:8px; background:#f8fafc; border-radius:10px 10px 0 0; }
+  .mcol-head .lv { font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.5px; color:var(--muted); }
+  .mcol-head .cnt { background:#eef2f7; color:var(--muted); border-radius:999px; padding:1px 7px; font-size:10px; font-weight:700; }
+  .inh-toggle { display:inline-flex; align-items:center; gap:5px; }
+  .inh-toggle .inh-lbl { font-size:10.5px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.3px; }
+  .mcol-body { overflow-y:auto; padding:6px; }
+  .mcol-row { display:flex; align-items:center; gap:7px; padding:5px 7px; border-radius:8px; cursor:pointer; border:1px solid transparent; }
+  .mcol-row:hover { background:var(--row-hover); }
+  .mcol-row.sel { background:var(--accent-soft); border-color:var(--accent); }
+  .mcol-row.dragging { opacity:.4; }
+  .mcol-row.dim .mc-name { color:var(--muted); text-decoration:line-through; text-decoration-color:var(--border-strong); }
+  .mc-name { flex:1; font-weight:550; font-size:12.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .mc-cnt { color:var(--muted); font-size:11px; font-weight:600; flex-shrink:0; }
+  .mc-chev { color:var(--muted); width:14px; height:14px; display:inline-flex; flex-shrink:0; }
+  .mc-ch { display:inline-flex; align-items:center; gap:5px; flex-shrink:0; }
+  .drag { color:var(--border-strong); cursor:grab; font-size:13px; flex-shrink:0; letter-spacing:-2px; }
+  .drag:active { cursor:grabbing; }
+  .mcol-row.inh .drag { visibility:hidden; }
+  .mcol-row.inh { cursor:pointer; }
+
+  /* priority spinner: single field, arrows stacked */
+  .spin { display:inline-flex; align-items:stretch; border:1px solid var(--border-strong); border-radius:7px; overflow:hidden; height:28px; flex-shrink:0; background:#fff; }
+  .spin-in { width:26px; border:none; text-align:center; font-size:12px; font-weight:700; font-variant-numeric:tabular-nums; color:var(--text); padding:0; background:transparent; -moz-appearance:textfield; }
+  .spin-in:focus { outline:none; background:var(--accent-soft); }
+  .spin-in::-webkit-outer-spin-button, .spin-in::-webkit-inner-spin-button { -webkit-appearance:none; margin:0; }
+  .spin-btns { display:flex; flex-direction:column; border-left:1px solid var(--border); }
+  .spin-btns button { flex:1; border:none; background:#f8fafc; cursor:pointer; color:var(--muted); font-size:7px; line-height:1; padding:0 5px; display:flex; align-items:center; justify-content:center; }
+  .spin-btns button:hover:not(:disabled) { background:var(--accent-soft); color:var(--accent); }
+  .spin-btns button:disabled { opacity:.35; cursor:default; }
+  .spin-btns button:first-child { border-bottom:1px solid var(--border); }
+  .spin.disabled { opacity:.45; }
+
+  /* mini switch */
+  .sw.mini { gap:0; }
+  .sw.mini .track { width:28px; height:16px; }
+  .sw.mini .track:after { width:12px; height:12px; }
+  .sw.mini.on .track:after { left:14px; }
+
+  /* details panel */
+  .cov-details .panel-head h2 { font-size:14px; }
+  .cd-row { display:flex; align-items:flex-start; gap:22px; flex-wrap:wrap; }
+  .cd-block { display:flex; flex-direction:column; gap:6px; }
+  .cd-block > label { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.4px; color:var(--muted); }
+
   /* disabled-summary modal */
   .seg button.on { background:var(--accent); color:#fff; }
   .sum-filters { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:12px; }
@@ -590,20 +637,22 @@ function countDisabledNodes(){
 
 /* ----------------------------- State ----------------------------- */
 var state = {
-  view: "coverage",          // coverage | picked-events
+  view: "coverage",          // coverage | picked-events | picked-tournaments
   partner: PARTNERS[0].id,
   mode: "both",              // both | live | prematch
   ageFilter: "",             // "" or age group
   search: "",
-  expanded: new Set(),
-  selected: new Set(),       // node ids selected via checkbox for bulk
+  colSel: {},                // parentKey ("root" or nodeId) -> selected child id  (Miller columns)
+  focusId: null,             // node shown in the details panel
+  inheritOrder: {},          // parentKey -> true  (ordering inherited → manual ordering disabled)
   modal: null,               // {type, nodeId, ...}
   modalTab: 0,
   summaryFilters: { q:"", kind:"all", sport:"", type:"", channel:"both" },
   toast: null
 };
-// expand the first sport by default
-state.expanded.add(ROOT_IDS[0]);
+// select the first sport by default
+state.colSel["root"] = ROOT_IDS[0];
+state.focusId = ROOT_IDS[0];
 
 /* ----------------------------- SVG ----------------------------- */
 var CHEVRON = '<svg viewBox="0 0 16 16" fill="none"><path d="M6 4l4 4-4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
@@ -620,12 +669,10 @@ function render(){
 
   var html = '<div class="app">'
     + topbarHtml()
-    + kpisHtml()
-    + (state.view==="picked-events" ? '' : '')
     + '<div class="cov-shell">'
       + sidebarHtml()
       + '<div>'
-        + (state.view==="coverage" ? coverageMainHtml() : pickedEventsMainHtml())
+        + mainViewHtml()
       + '</div>'
     + '</div>'
     + '<div class="footer-note">Mock data · single-file prototype. Coverage, ordering, providers, templates, exclusions &amp; age-groups are illustrative — wire <code>NODES</code> to your coverage API to go live.</div>'
@@ -667,276 +714,214 @@ function kpisHtml(){
   + '</div>';
 }
 
-/* ---------- sidebar (iframe left tree) ---------- */
+/* ---------- view router ---------- */
+function mainViewHtml(){
+  if(state.view==="picked-events") return pickedEventsMainHtml();
+  if(state.view==="picked-tournaments") return pickedTournamentsMainHtml();
+  return coverageMainHtml();
+}
+
+/* ---------- sidebar (iframe left menu) ---------- */
 function sidebarHtml(){
-  // picked tournaments (pinned top)
-  var pinned = PICKED_TOURNAMENTS.map(function(id){
-    var n=NODES[id]; if(!n) return "";
-    return '<div class="pin-item" data-jump="'+id+'"><span class="ic">🏆</span>'
-      + '<span class="name" title="'+esc(pathLabel(n))+'">'+esc(n.name)+'</span>'
-      + '<span class="x" data-unpin-trn="'+id+'" title="Remove from picks">✕</span></div>';
-  }).join("") || '<div class="sub-muted" style="padding:6px 14px">No picked tournaments yet.</div>';
-
-  // sports tree
-  var tree = sortedChildren(null).map(function(sp){ return sNodeHtml(sp); }).join("");
-
+  function item(view, ic, label, badge){
+    return '<div class="nav-item '+(state.view===view?"active":"")+'" data-view="'+view+'">'
+      + '<span class="ic">'+ic+'</span><span class="name">'+label+'</span>'
+      + (badge!=null?'<span class="badge">'+badge+'</span>':'')+'</div>';
+  }
   return '<div class="panel sidebar">'
     + '<div class="side-block">'
-      + '<div class="side-title">📌 Picked Tournaments <button class="side-add" id="add-picked-trn" title="Add tournament">+</button></div>'
-      + pinned
+      + '<div class="side-title">Menu</div>'
+      + item("coverage","🗂","Coverage", null)
+      + item("picked-tournaments","🏆","Picked Tournaments", PICKED_TOURNAMENTS.length)
+      + item("picked-events","⭐","Picked Events", PICKED_EVENTS.length)
     + '</div>'
     + '<div class="side-block">'
-      + '<div class="nav-item '+(state.view==="picked-events"?"active":"")+'" data-view="picked-events">'
-        + '<span class="ic">⭐</span><span class="name">Picked Events</span><span class="badge">'+PICKED_EVENTS.length+'</span></div>'
-      + '<div class="nav-item '+(state.view==="coverage"?"active":"")+'" data-view="coverage">'
-        + '<span class="ic">🗂</span><span class="name">Coverage Tree</span></div>'
-    + '</div>'
-    + '<div class="side-block">'
-      + '<div class="side-title">Sports <span class="count">'+ROOT_IDS.length+'</span></div>'
-      + '<div class="stree">'+tree+'</div>'
+      + '<div class="side-title">Partner</div>'
+      + '<div style="padding:6px 12px 12px"><div class="sub-muted" style="font-size:11px">Editing coverage for</div><div style="font-weight:650; margin-top:2px">'+esc(partnerName(state.partner))+'</div></div>'
     + '</div>'
   + '</div>';
 }
-function sNodeHtml(node){
-  var hasKids = node.childIds.length>0 && node.type!=="event"; // show down to event in sidebar
-  var open = state.expanded.has(node.id);
-  var sel = state.modal && state.modal.nodeId===node.id;
-  var indent = ancestors(node).length;
-  var dot = nodeDot(node);
-  var html = '<div class="snode">'
-    + '<div class="srow'+(sel?' sel':'')+'" data-side="'+node.id+'" style="padding-left:'+(8+indent*13)+'px">'
-      + '<span class="tw '+(hasKids?(open?'open':''):'leaf')+'" data-side-tw="'+node.id+'">'+CHEVRON+'</span>'
-      + '<span class="ic">'+(ICONS[node.type]||"•")+'</span>'
-      + '<span class="nm" title="'+esc(node.name)+'">'+esc(node.name)+'</span>'
-      + '<span class="dot '+dot+'" title="own state"></span>'
-    + '</div>';
-  if(hasKids && open){
-    html += sortedChildren(node).map(function(c){ return c.type==="event"? "" : sNodeHtml(c); }).join("");
-    // show event count leaf line under tournaments
-    if(node.type==="tournament"){
-      html += '<div class="srow" data-side="'+node.id+'" style="padding-left:'+(8+(indent+1)*13)+'px"><span class="tw leaf"></span><span class="ic">⚔</span><span class="nm sub-muted">'+node.childIds.length+' events</span></div>';
-    }
-  }
-  return html + '</div>';
-}
 
-/* ---------- main coverage table ---------- */
-function visibleRows(){
-  // produce flat list honoring expansion, search, age filter
-  var rows=[];
+/* ---------- main coverage view: Miller columns ---------- */
+var LEVEL_LABEL={sport:"Sports",category:"Categories",tournament:"Tournaments",event:"Events",market:"Markets"};
+var LEVEL_TAG={sport:"SPT",category:"CAT",tournament:"TRN",event:"EVT",market:"MKT"};
+function childLevelOf(type){ return {sport:"category",category:"tournament",tournament:"event",event:"market"}[type]||null; }
+
+// the chain of columns derived from the current selection path
+function columnChain(){
+  var cols=[{pkey:"root", parent:null, level:"sport"}];
+  var sel=state.colSel["root"];
+  while(sel && NODES[sel] && NODES[sel].childIds.length){
+    var pn=NODES[sel];
+    cols.push({pkey:pn.id, parent:pn, level:childLevelOf(pn.type)});
+    sel=state.colSel[pn.id];
+  }
+  return cols;
+}
+// items for a column: full order-sorted list + the display list (inherit/search/age applied)
+function columnItems(col){
+  var ordered = col.parent ? sortedChildren(col.parent) : sortedChildren(null);
+  var rank={}; ordered.forEach(function(n,i){ rank[n.id]=i+1; });
+  var shown = ordered.slice();
+  var inherit = !!state.inheritOrder[col.pkey];
+  if(inherit) shown.sort(function(a,b){ return a.name.localeCompare(b.name, undefined, {numeric:true}); });
   var q=state.search.trim().toLowerCase();
-  function matchSearch(node){
-    if(!q) return true;
-    if(node.name.toLowerCase().indexOf(q)!==-1) return true;
-    // match if any descendant matches
-    return node.childIds.some(function(id){ return matchSearch(NODES[id]); });
-  }
-  function ageOk(node){
-    if(!state.ageFilter) return true;
-    // applies to tournament + its subtree; sports/categories pass through
-    if(node.type==="tournament") return node.ageGroup===state.ageFilter;
-    if(node.type==="event"||node.type==="market"){ // inherit tournament age
-      var t=node; while(t && t.type!=="tournament") t=NODES[t.parentId];
-      return t? t.ageGroup===state.ageFilter : true;
-    }
-    return true; // sport/category: shown if any descendant tournament matches (handled by recursion)
-  }
-  function walk(node, depth){
-    if(!matchSearch(node)) return false;
-    // age filter: for sport/category only include if some descendant tournament matches
-    if(state.ageFilter && (node.type==="sport"||node.type==="category")){
-      var any = hasAgeDescendant(node);
-      if(!any) return false;
-    }
-    if(state.ageFilter && node.type==="tournament" && node.ageGroup!==state.ageFilter) return false;
-
-    rows.push({node:node, depth:depth});
-    var open = state.expanded.has(node.id) || (q && node.type!=="event"); // auto-open on search down to events
-    if(open && node.childIds.length){
-      sortedChildren(node).forEach(function(c){ walk(c, depth+1); });
-    }
-    return true;
-  }
-  sortedChildren(null).forEach(function(sp){ walk(sp,0); });
-  return rows;
-}
-function hasAgeDescendant(node){
-  if(node.type==="tournament") return node.ageGroup===state.ageFilter;
-  return node.childIds.some(function(id){ return hasAgeDescendant(NODES[id]); });
+  if(q) shown=shown.filter(function(n){ return n.name.toLowerCase().indexOf(q)!==-1; });
+  if(state.ageFilter && col.level==="tournament") shown=shown.filter(function(n){ return n.ageGroup===state.ageFilter; });
+  return {ordered:ordered, shown:shown, rank:rank, total:ordered.length, inherit:inherit};
 }
 
 function coverageMainHtml(){
-  var rows = visibleRows();
   var ageOpts = '<option value="">All age groups</option>' + AGE_GROUPS.map(function(a){ return '<option value="'+a+'"'+(state.ageFilter===a?' selected':'')+'>'+a+'</option>'; }).join("");
+  var cols = columnChain();
+  var colsHtml = cols.map(function(c){ return mcolHtml(c); }).join("");
+  var focus = state.focusId && NODES[state.focusId] ? NODES[state.focusId] : null;
 
-  var selCount = state.selected.size;
-  var selbar = selCount>0 ? (
-    '<div class="selbar">'
-      + '<span class="lead">'+selCount+' selected</span>'
-      + '<button class="btn sm" data-bulk="enable-live">Enable Live</button>'
-      + '<button class="btn sm" data-bulk="disable-live">Disable Live</button>'
-      + '<button class="btn sm" data-bulk="enable-pre">Enable Prematch</button>'
-      + '<button class="btn sm" data-bulk="disable-pre">Disable Prematch</button>'
-      + '<span class="spacer"></span>'
-      + '<button class="btn sm" id="bulk-clear">Clear selection</button>'
-    + '</div>'
-  ) : '';
-
-  // columns depend on mode
-  var showLive = state.mode!=="prematch";
-  var showPre  = state.mode!=="live";
-  var head = '<tr>'
-    + '<th class="lbl" style="width:34%">Coverage node</th>'
-    + (showLive? '<th>Live</th>':'')
-    + (showPre? '<th>Prematch</th>':'')
-    + '<th>Order</th>'
-    + '<th>Feed providers</th>'
-    + '<th>Markets / Template</th>'
-    + '<th>Age</th>'
-    + '<th style="width:54px"></th>'
-  + '</tr>';
-
-  var colspan = 4 + (showLive?1:0) + (showPre?1:0);
-  var body = rows.length===0
-    ? '<tr><td colspan="'+colspan+'"><div class="empty-state">No nodes match the current search / age filter.</div></td></tr>'
-    : rows.map(function(r){ return covRowHtml(r.node, r.depth, showLive, showPre); }).join("");
-
-  return selbar
-    + '<div class="panel">'
+  return '<div class="panel">'
       + '<div class="panel-head">'
-        + '<h2>Coverage Tree</h2><span class="hint">partner: '+esc(partnerName(state.partner))+'</span>'
+        + '<h2>Coverage</h2><span class="hint">click a row to open its children in the next column · drag the handle to reorder</span>'
         + '<span class="spacer"></span>'
         + '<div class="toolbar">'
-          + '<select class="input" id="age-filter" style="min-width:150px">'+ageOpts+'</select>'
-          + '<input id="cov-search" class="search-box" placeholder="Search nodes…" value="'+esc(state.search)+'">'
-          + '<button class="btn" id="expand-all">Expand</button>'
-          + '<button class="btn" id="collapse-all">Collapse</button>'
+          + '<select class="input" id="age-filter" style="min-width:140px">'+ageOpts+'</select>'
+          + '<input id="cov-search" class="search-box" placeholder="Filter in columns…" value="'+esc(state.search)+'">'
         + '</div>'
       + '</div>'
-      + '<div class="table-wrap"><table class="cov"><thead>'+head+'</thead><tbody>'+body+'</tbody></table></div>'
-      + '<div class="legend">'
-        + '<span><span class="dot" style="background:var(--pos)"></span>both channels on</span>'
-        + '<span><span class="dot" style="background:var(--warn)"></span>partial</span>'
-        + '<span><span class="dot" style="background:var(--neg)"></span>off</span>'
-        + '<span>Toggling a parent cascades to children. A dimmed toggle means a parent disabled this channel upstream.</span>'
-        + '<span>Markets count shows <b style="color:var(--neg)">disabled / total</b> at that node; click to edit rules &amp; exclusions.</span>'
+      + '<div class="panel-body" style="padding:12px">'
+        + '<div class="mcols">'+colsHtml+'</div>'
       + '</div>'
-    + '</div>';
+    + '</div>'
+    + (focus? detailsHtml(focus) : '');
 }
 
-function covRowHtml(node, depth, showLive, showPre){
-  var hasKids = node.childIds.length>0;
-  var open = state.expanded.has(node.id);
-  var tag = {sport:"SPT",category:"CAT",tournament:"TRN",event:"EVT",market:"MKT"}[node.type];
+function spinnerHtml(node, no, total, disabled){
+  return '<div class="spin'+(disabled?' disabled':'')+'" title="Priority — type a position or use the arrows">'
+    + '<input class="spin-in" type="text" inputmode="numeric" value="'+no+'" data-prio-node="'+node.id+'"'+(disabled?' disabled':'')+'>'
+    + '<div class="spin-btns">'
+      + '<button data-prio="up" data-prio-node="'+node.id+'" '+(disabled||no<=1?'disabled':'')+'>▲</button>'
+      + '<button data-prio="down" data-prio-node="'+node.id+'" '+(disabled||no>=total?'disabled':'')+'>▼</button>'
+    + '</div></div>';
+}
+function miniSwitch(node, ch){
+  var own=node[ch].enabled, eff=effChannel(node,ch), inhOff=own&&!eff;
+  return '<span class="sw mini '+(own?'on':'')+(inhOff?' inherited-off':'')+'" data-ch="'+ch+'" data-toggle="'+node.id+'" data-channel="'+ch+'" title="'+(own?'Disable':'Enable')+' '+ch+(inhOff?' (parent off)':'')+'"><span class="track"></span></span>';
+}
 
-  // channel toggles
-  function chanCell(ch){
-    if(node.type==="market"){
-      // markets handled at parent level; show effective on/off summary instead
-      return '<td><div class="cell sub-muted">—</div></td>';
-    }
-    var own = node[ch].enabled;
-    var eff = effChannel(node, ch);
-    var inheritedOff = own && !eff; // own on but ancestor off
-    var cls = "sw "+(own?"on":"")+(inheritedOff?" inherited-off":"");
-    var note = "";
-    if(inheritedOff) note = '<span class="inh-note">parent off</span>';
-    return '<td><div class="ch-cell">'
-      + '<span class="'+cls+'" data-ch="'+ch+'" data-toggle="'+node.id+'" title="'+(own?'Disable':'Enable')+' '+ch+'"><span class="track"></span></span>'
-      + note
-    + '</div></td>';
-  }
+function mcolHtml(col){
+  var ci = columnItems(col);
+  var sel = state.colSel[col.pkey];
+  var rows = ci.shown.length===0
+    ? '<div class="sub-muted" style="padding:14px; text-align:center">No items'+(state.search||state.ageFilter?' match the filter':'')+'.</div>'
+    : ci.shown.map(function(n, i){
+        var no = ci.inherit ? (i+1) : ci.rank[n.id];
+        return mcRowHtml(n, col, no, ci.total, ci.inherit, sel===n.id);
+      }).join("");
+  var label = LEVEL_LABEL[col.level] || "Items";
+  return '<div class="mcol" data-col="'+col.pkey+'">'
+    + '<div class="mcol-head">'
+      + '<span class="lv">'+label+'</span><span class="cnt">'+ci.shown.length+'</span>'
+      + '<span class="spacer"></span>'
+      + '<span class="inh-toggle"><span class="sw mini '+(ci.inherit?'on':'')+'" data-inherit="'+col.pkey+'" data-ch="prematch" title="Inherit ordering — disables manual priority"><span class="track"></span></span><span class="inh-lbl">Inherit</span></span>'
+    + '</div>'
+    + '<div class="mcol-body">'+rows+'</div>'
+  + '</div>';
+}
 
-  // order control
-  var sibs = siblings(node).slice().sort(function(a,b){return a.order-b.order;});
-  var idx = sibs.indexOf(node);
-  var orderCell = node.type==="market"
-    ? '<td><div class="cell"><span class="sub-muted">'+(idx+1)+'</span></div></td>'
-    : '<td><div class="cell"><div class="ord">'
-        + '<button data-move="up" data-node="'+node.id+'" '+(idx<=0?'disabled':'')+'>▲</button>'
-        + '<span class="num">'+(idx+1)+'</span>'
-        + '<button data-move="down" data-node="'+node.id+'" '+(idx>=sibs.length-1?'disabled':'')+'>▼</button>'
-      + '</div></div></td>';
-
-  // providers (per partner)
-  var provCell;
-  if(node.type==="market"){ provCell='<td><div class="cell sub-muted">—</div></td>'; }
-  else {
-    var provs = node.providers[state.partner];
-    if(provs && provs.length){
-      provCell = '<td><div class="cell"><span class="pbadge" data-providers="'+node.id+'"><span class="prio">1</span>'+esc(provs[0])+(provs.length>1?(' +'+(provs.length-1)):'')+'</span></div></td>';
-    } else {
-      // inherited?
-      var inh=null, p=node.parentId;
-      while(p){ if(NODES[p].providers[state.partner]){ inh=NODES[p].providers[state.partner]; break;} p=NODES[p].parentId; }
-      provCell = '<td><div class="cell"><span class="pbadge" data-providers="'+node.id+'" style="color:var(--muted)">'
-        + (inh? '↑ '+esc(inh[0])+(inh.length>1?(' +'+(inh.length-1)):'') : '+ set')
-        + '</span></div></td>';
-    }
-  }
-
-  // markets / template cell
-  var mktCell;
+function mcRowHtml(node, col, no, total, inherit, isSel){
+  var showLive=state.mode!=="prematch", showPre=state.mode!=="live";
+  var hasKids = node.type!=="market" && node.childIds.length>0;
+  var dimmed = node.type!=="market" && (!effChannel(node,'live') && !effChannel(node,'prematch'));
+  var chans;
   if(node.type==="market"){
-    // show effective live/prematch state for the leaf market
-    var parentEv = NODES[node.parentId];
-    var lv = effMarket(parentEv, node.marketKey, 'live');
-    var pr = effMarket(parentEv, node.marketKey, 'prematch');
+    var pe=NODES[node.parentId];
+    var lv=effMarket(pe,node.marketKey,'live'), pr=effMarket(pe,node.marketKey,'prematch');
     var parts=[];
-    if(showLive) parts.push('<span class="eff-badge '+(lv.excluded?'eff-exc':(lv.state==='on'?'eff-on':'eff-off'))+'">L '+(lv.excluded?'EXC':lv.state.toUpperCase())+'</span>');
-    if(showPre) parts.push('<span class="eff-badge '+(pr.excluded?'eff-exc':(pr.state==='on'?'eff-on':'eff-off'))+'">P '+(pr.excluded?'EXC':pr.state.toUpperCase())+'</span>');
-    mktCell = '<td><div class="cell"><div class="pillrow" style="justify-content:center">'+parts.join("")+'</div></div></td>';
-  } else if(node.type==="event"||node.type==="tournament"){
-    var tmplId = node.template;
-    var tmpl = tmplId? TEMPLATES[tmplId] : null;
-    var tmplBadge = '<span class="tmpl-badge '+(tmpl?'set':'none')+'" data-template="'+node.id+'">'+(tmpl? '◳ '+esc(tmpl.name.replace(sportOf(node)+" — ","")) : '◳ template')+'</span>';
-    // count disabled markets at this node
-    var nDis = Object.keys(node.marketRules).filter(function(k){var r=node.marketRules[k]; return r.live==='off'||r.prematch==='off';}).length;
-    var nExc = Object.keys(node.marketRules).filter(function(k){return node.marketRules[k].live==='on'||node.marketRules[k].prematch==='on';}).length;
-    var total = marketsFor(sportOf(node)).length;
-    var mk = '<span class="mkt-link" data-markets="'+node.id+'">'+(nDis>0?'<span class="warnnum">'+nDis+'</span>':'0')+' / '+total+' off'+(nExc>0?' · '+nExc+' exc':'')+'</span>';
-    mktCell = '<td><div class="cell"><div class="pillrow" style="justify-content:center">'+tmplBadge+mk+'</div></div></td>';
+    if(showLive) parts.push('<span class="eff-badge '+(lv.excluded?'eff-exc':(lv.state==='on'?'eff-on':'eff-off'))+'">L</span>');
+    if(showPre) parts.push('<span class="eff-badge '+(pr.excluded?'eff-exc':(pr.state==='on'?'eff-on':'eff-off'))+'">P</span>');
+    chans='<span class="mc-ch">'+parts.join("")+'</span>';
   } else {
-    // sport/category: market rules + (sport: templates link)
-    var nDis2 = Object.keys(node.marketRules).filter(function(k){var r=node.marketRules[k]; return r.live==='off'||r.prematch==='off';}).length;
-    var total2 = marketsFor(sportOf(node)).length;
-    var mk2 = '<span class="mkt-link" data-markets="'+node.id+'">'+(nDis2>0?'<span class="warnnum">'+nDis2+'</span>':'0')+' / '+total2+' off</span>';
-    var tlink = node.type==="sport" ? ' <span class="tmpl-badge none" data-templates="'+node.id+'">◳ templates ('+templatesForSport(node.name).length+')</span>' : '';
-    mktCell = '<td><div class="cell"><div class="pillrow" style="justify-content:center">'+mk2+tlink+'</div></div></td>';
+    chans='<span class="mc-ch">'+(showLive?miniSwitch(node,'live'):'')+(showPre?miniSwitch(node,'prematch'):'')+'</span>';
+  }
+  var liveBadge=(node.type==="event"&&node.isLiveNow)?' <span class="live-pill">live</span>':'';
+  return '<div class="mcol-row'+(isSel?' sel':'')+(dimmed?' dim':'')+(inherit?' inh':'')+'" data-col-row="'+node.id+'" data-pkey="'+col.pkey+'"'
+      + (inherit?'':' draggable="true" data-drag-node="'+node.id+'"')+'>'
+    + '<span class="drag" title="Drag to reorder">⠿</span>'
+    + spinnerHtml(node, no, total, inherit)
+    + '<span class="mc-name" title="'+esc(node.name)+'">'+esc(node.name)+liveBadge+'</span>'
+    + (hasKids?'<span class="mc-cnt">'+node.childIds.length+'</span>':'')
+    + chans
+    + (hasKids?'<span class="mc-chev">'+CHEVRON+'</span>':'<span style="width:14px"></span>')
+  + '</div>';
+}
+
+/* ---------- details panel for the focused node ---------- */
+function detailsHtml(node){
+  var tag=LEVEL_TAG[node.type];
+  var bigToggles="";
+  if(node.type!=="market"){
+    function bt(ch,label){
+      var own=node[ch].enabled, eff=effChannel(node,ch), inhOff=own&&!eff;
+      return '<div class="cd-block"><label>'+label+'</label>'
+        + '<span class="sw '+(own?'on':'')+(inhOff?' inherited-off':'')+'" data-ch="'+ch+'" data-toggle="'+node.id+'" data-channel="'+ch+'"><span class="track"></span></span>'
+        + (inhOff?'<span class="inh-note">parent off</span>':'')+'</div>';
+    }
+    bigToggles=(state.mode!=="prematch"?bt('live','Live'):'')+(state.mode!=="live"?bt('prematch','Prematch'):'');
   }
 
-  // age cell (tournaments editable, events inherit)
-  var ageCell;
+  // providers
+  var provs=node.providers[state.partner];
+  var provBtn;
+  if(node.type==="market"){ provBtn='<span class="sub-muted">n/a for markets</span>'; }
+  else if(provs&&provs.length){ provBtn='<span class="pbadge" data-providers="'+node.id+'"><span class="prio">1</span>'+esc(provs[0])+(provs.length>1?(' +'+(provs.length-1)):'')+'</span>'; }
+  else {
+    var inh=null,p=node.parentId; while(p){ if(NODES[p].providers[state.partner]){inh=NODES[p].providers[state.partner];break;} p=NODES[p].parentId; }
+    provBtn='<span class="pbadge" data-providers="'+node.id+'" style="color:var(--muted)">'+(inh?'↑ '+esc(inh[0])+(inh.length>1?(' +'+(inh.length-1)):''):'+ set providers')+'</span>';
+  }
+
+  // markets / template
+  var mktBtn;
+  if(node.type==="market"){
+    mktBtn='<span class="sub-muted">leaf market</span>';
+  } else if(node.type==="event"||node.type==="tournament"){
+    var tmpl=node.template?TEMPLATES[node.template]:null;
+    var nDis=Object.keys(node.marketRules).filter(function(k){var r=node.marketRules[k];return r.live==='off'||r.prematch==='off';}).length;
+    var total=marketsFor(sportOf(node)).length;
+    mktBtn='<span class="tmpl-badge '+(tmpl?'set':'none')+'" data-template="'+node.id+'">◳ '+(tmpl?esc(tmpl.name.replace(sportOf(node)+" — ","")):'template')+'</span> '
+      + '<span class="mkt-link" data-markets="'+node.id+'">'+(nDis>0?'<span class="warnnum">'+nDis+'</span>':'0')+' / '+total+' off</span>';
+  } else {
+    var nDis2=Object.keys(node.marketRules).filter(function(k){var r=node.marketRules[k];return r.live==='off'||r.prematch==='off';}).length;
+    var total2=marketsFor(sportOf(node)).length;
+    mktBtn='<span class="mkt-link" data-markets="'+node.id+'">'+(nDis2>0?'<span class="warnnum">'+nDis2+'</span>':'0')+' / '+total2+' off</span>'
+      + (node.type==="sport"?' <span class="tmpl-badge none" data-templates="'+node.id+'">◳ templates ('+templatesForSport(node.name).length+')</span>':'');
+  }
+
+  // age + pick actions
+  var ageBlock = node.type==="tournament"
+    ? '<div class="cd-block"><label>Age group</label><span class="age-badge" data-age="'+node.id+'">'+esc(node.ageGroup||"—")+'</span></div>'
+    : '';
+  var pickBlock="";
   if(node.type==="tournament"){
-    ageCell = '<td><div class="cell"><span class="age-badge" data-age="'+node.id+'">'+esc(node.ageGroup||"—")+'</span></div></td>';
+    var pinned=PICKED_TOURNAMENTS.indexOf(node.id)!==-1;
+    pickBlock='<div class="cd-block"><label>Quick access</label>'+(pinned
+      ? '<button class="btn sm danger" data-unpin-trn="'+node.id+'">★ Remove from picks</button>'
+      : '<button class="btn sm" data-pin-trn="'+node.id+'">☆ Pin as top tournament</button>')+'</div>';
   } else if(node.type==="event"){
-    var t=NODES[node.parentId]; ageCell='<td><div class="cell sub-muted">'+esc(t.ageGroup||"—")+'</div></td>';
-  } else ageCell='<td><div class="cell sub-muted">—</div></td>';
+    var picked=PICKED_EVENTS.indexOf(node.id)!==-1;
+    pickBlock='<div class="cd-block"><label>Quick access</label>'+(picked
+      ? '<button class="btn sm danger" data-unpin-event="'+node.id+'">★ Remove from picks</button>'
+      : '<button class="btn sm" data-pin-event="'+node.id+'">☆ Add to picked events</button>')+'</div>';
+  }
 
-  // name cell
-  var dimmed = (!effChannel(node,'live') && !effChannel(node,'prematch'));
-  var selectable = node.type!=="market";
-  var checked = state.selected.has(node.id);
-  var liveBadge = (node.type==="event" && node.isLiveNow) ? ' <span class="live-pill">live now</span>' : '';
-  var nameCell = '<td class="lbl"><div class="cell" style="padding-left:'+(10+depth*18)+'px">'
-    + '<span class="twisty '+(hasKids?(open?'open':''):'leaf')+'" '+(hasKids?('data-tw="'+node.id+'"'):'')+'>'+CHEVRON+'</span>'
-    + (selectable? '<input type="checkbox" class="cb-sel" data-sel="'+node.id+'"'+(checked?' checked':'')+'>' : '<span style="width:14px"></span>')
-    + '<span class="dim-tag '+tag+'">'+tag+'</span>'
-    + '<span class="name'+(dimmed?' dis':'')+'" title="'+esc(node.name)+'">'+esc(node.name)+'</span>'
-    + (hasKids?'<span class="sub-muted">· '+node.childIds.length+'</span>':'')
-    + liveBadge
-  + '</div></td>';
-
-  return '<tr>'
-    + nameCell
-    + (showLive? chanCell('live'):'')
-    + (showPre? chanCell('prematch'):'')
-    + orderCell
-    + provCell
-    + mktCell
-    + ageCell
-    + '<td><div class="cell"><button class="icon-btn" data-providers="'+node.id+'" title="Feed providers">⚙</button></div></td>'
-  + '</tr>';
+  return '<div class="panel cov-details">'
+    + '<div class="panel-head"><span class="dim-tag '+tag+'">'+tag+'</span><h2 style="margin-left:2px">'+esc(node.name)+'</h2>'
+      + '<span class="hint">'+esc(pathLabel(node))+'</span></div>'
+    + '<div class="panel-body"><div class="cd-row">'
+      + bigToggles
+      + '<div class="cd-block"><label>Feed providers</label><div>'+provBtn+'</div></div>'
+      + '<div class="cd-block"><label>Markets / Template</label><div class="pillrow">'+mktBtn+'</div></div>'
+      + ageBlock
+      + pickBlock
+    + '</div></div>'
+  + '</div>';
 }
 
 /* ---------- picked events view ---------- */
@@ -954,7 +939,7 @@ function pickedEventsMainHtml(){
             + '<div class="pe-path">'+esc(pathLabel(NODES[n.parentId]))+'</div>'
           + '</div>'
           + '<div class="pe-when">'+fmtWhen(n.date||BASE_DATE)+'</div>'
-          + '<button class="btn sm" data-jump-event="'+n.id+'">Open in tree</button>'
+          + '<button class="btn sm" data-jump-event="'+n.id+'">Open in coverage</button>'
           + '<button class="btn sm danger" data-unpin-event="'+n.id+'">Remove</button>'
         + '</div>';
       }).join("");
@@ -966,6 +951,35 @@ function pickedEventsMainHtml(){
     + '</div>'
     + '<div class="panel-body">'
       + '<div class="info-banner blue">ℹ️ Picked events appear as a dedicated menu item in the player iframe’s left tree. Players reach them in one click without navigating the sports hierarchy.</div>'
+      + cards
+    + '</div>'
+  + '</div>';
+}
+
+/* ---------- picked tournaments view ---------- */
+function pickedTournamentsMainHtml(){
+  var items = PICKED_TOURNAMENTS.map(function(id){ return NODES[id]; }).filter(Boolean);
+  var cards = items.length===0
+    ? '<div class="empty-state">No top tournaments yet. Use “Add tournaments” to build the list.</div>'
+    : items.map(function(n){
+        return '<div class="pe-card">'
+          + '<span class="ic" style="font-size:16px">🏆</span>'
+          + '<div style="flex:1">'
+            + '<div class="pe-name">'+esc(n.name)+'</div>'
+            + '<div class="pe-path">'+esc(pathLabel(NODES[n.parentId]))+' · '+n.childIds.length+' events</div>'
+          + '</div>'
+          + '<button class="btn sm" data-jump="'+n.id+'">Open in coverage</button>'
+          + '<button class="btn sm danger" data-unpin-trn="'+n.id+'">Remove</button>'
+        + '</div>';
+      }).join("");
+
+  return '<div class="panel">'
+    + '<div class="panel-head"><h2>Picked Tournaments</h2><span class="hint">top tournaments pinned to the top of the iframe left tree</span>'
+      + '<span class="spacer"></span>'
+      + '<button class="btn primary" id="add-picked-trn">+ Add tournaments</button>'
+    + '</div>'
+    + '<div class="panel-body">'
+      + '<div class="info-banner blue">ℹ️ Top tournaments appear pinned at the top of the player iframe’s left tree, so players open their events directly without digging through the sports hierarchy.</div>'
       + cards
     + '</div>'
   + '</div>';
@@ -1254,9 +1268,24 @@ function reorder(node, dir){
   var sibs = siblings(node).slice().sort(function(a,b){return a.order-b.order;});
   var i=sibs.indexOf(node), j=dir==="up"?i-1:i+1;
   if(j<0||j>=sibs.length) return;
-  var a=sibs[i], b=sibs[j]; var t=a.order; a.order=b.order; b.order=t;
-  // normalize if equal
-  sibs.sort(function(x,y){return x.order-y.order;}).forEach(function(n,k){ n.order=k; });
+  sibs.splice(i,1); sibs.splice(j,0,node);
+  sibs.forEach(function(n,k){ n.order=k; });
+}
+function setOrderPosition(node, pos){
+  var sibs = siblings(node).slice().sort(function(a,b){return a.order-b.order;});
+  var cur=sibs.indexOf(node);
+  pos=Math.max(1, Math.min(sibs.length, pos))-1;
+  if(pos===cur) return;
+  sibs.splice(cur,1); sibs.splice(pos,0,node);
+  sibs.forEach(function(n,k){ n.order=k; });
+}
+function dropReorder(dragNode, targetNode, after){
+  if(!dragNode||!targetNode||dragNode.parentId!==targetNode.parentId||dragNode===targetNode) return;
+  var sibs = siblings(dragNode).slice().sort(function(a,b){return a.order-b.order;});
+  sibs.splice(sibs.indexOf(dragNode),1);
+  var ti=sibs.indexOf(targetNode)+(after?1:0);
+  sibs.splice(ti,0,dragNode);
+  sibs.forEach(function(n,k){ n.order=k; });
 }
 
 function setChannelCascade(node, ch, val){
@@ -1265,37 +1294,47 @@ function setChannelCascade(node, ch, val){
   (function walk(n){ n.childIds.forEach(function(id){ var c=NODES[id]; if(c.type!=="market"){ c[ch].enabled=val; walk(c);} }); })(node);
 }
 
+// select a node and lay out the Miller columns down to it
+function selectInColumns(node){
+  state.colSel={};
+  var chain=ancestors(node).concat(node);
+  var pkey="root";
+  chain.forEach(function(n){ state.colSel[pkey]=n.id; pkey=n.id; });
+  state.focusId=node.id;
+  state.view="coverage";
+}
+
 root.addEventListener("click", function(e){
   var t=e.target;
 
-  // view switch
+  // mode segmented
+  var seg=t.closest("[data-mode]"); if(seg){ state.mode=seg.getAttribute("data-mode"); render(); return; }
+
+  // view switch (sidebar menu)
   var nv=t.closest("[data-view]"); if(nv){ state.view=nv.getAttribute("data-view"); render(); return; }
 
-  // sidebar twisty / select
-  var stw=t.closest("[data-side-tw]"); if(stw){ var id=stw.getAttribute("data-side-tw"); if(state.expanded.has(id))state.expanded.delete(id); else state.expanded.add(id); render(); return; }
-  var srow=t.closest("[data-side]"); if(srow){ var sid=srow.getAttribute("data-side"); state.view="coverage"; expandToNode(NODES[sid]); state.modal=null; render(); scrollToNode(sid); return; }
+  // priority arrows (before row-select)
+  var pr=t.closest("[data-prio]"); if(pr){ reorder(NODES[pr.getAttribute("data-prio-node")], pr.getAttribute("data-prio")); render(); return; }
 
-  // jump from picks
-  var jt=t.closest("[data-jump]"); if(jt){ state.view="coverage"; expandToNode(NODES[jt.getAttribute("data-jump")]); render(); scrollToNode(jt.getAttribute("data-jump")); return; }
-  var je=t.closest("[data-jump-event]"); if(je){ state.view="coverage"; expandToNode(NODES[je.getAttribute("data-jump-event")]); render(); scrollToNode(je.getAttribute("data-jump-event")); return; }
+  // inherit-order toggle (per column)
+  var inh=t.closest("[data-inherit]"); if(inh){ var pk=inh.getAttribute("data-inherit"); if(state.inheritOrder[pk]) delete state.inheritOrder[pk]; else state.inheritOrder[pk]=true; render(); return; }
 
-  var upt=t.closest("[data-unpin-trn]"); if(upt){ var pid=upt.getAttribute("data-unpin-trn"); PICKED_TOURNAMENTS=PICKED_TOURNAMENTS.filter(function(x){return x!==pid;}); render(); return; }
+  // channel toggle (mini switch or details switch)
+  var sw=t.closest("[data-toggle]"); if(sw){ var n=NODES[sw.getAttribute("data-toggle")]; var ch=sw.getAttribute("data-ch"); setChannelCascade(n,ch,!n[ch].enabled); render(); return; }
+
+  // pin / unpin picks
+  var pt=t.closest("[data-pin-trn]"); if(pt){ var pid=pt.getAttribute("data-pin-trn"); if(PICKED_TOURNAMENTS.indexOf(pid)===-1)PICKED_TOURNAMENTS.push(pid); render(); return; }
+  var pe2=t.closest("[data-pin-event]"); if(pe2){ var eid2=pe2.getAttribute("data-pin-event"); if(PICKED_EVENTS.indexOf(eid2)===-1)PICKED_EVENTS.push(eid2); render(); return; }
+  var upt=t.closest("[data-unpin-trn]"); if(upt){ var pid2=upt.getAttribute("data-unpin-trn"); PICKED_TOURNAMENTS=PICKED_TOURNAMENTS.filter(function(x){return x!==pid2;}); render(); return; }
   var upe=t.closest("[data-unpin-event]"); if(upe){ var eid=upe.getAttribute("data-unpin-event"); PICKED_EVENTS=PICKED_EVENTS.filter(function(x){return x!==eid;}); render(); return; }
+
+  // open pickers
   if(t.closest("#add-picked-trn")){ state.modal={type:"add-picked-trn",q:""}; render(); return; }
   if(t.closest("#add-picked-event")){ state.modal={type:"add-picked-event",q:""}; render(); return; }
 
-  // main tree twisty
-  var tw=t.closest("[data-tw]"); if(tw){ var p=tw.getAttribute("data-tw"); if(state.expanded.has(p))state.expanded.delete(p); else state.expanded.add(p); render(); return; }
-
-  // channel toggle
-  var sw=t.closest("[data-toggle]"); if(sw){ var nid=sw.getAttribute("data-toggle"); var ch=sw.getAttribute("data-ch"); var n=NODES[nid]; setChannelCascade(n,ch,!n[ch].enabled); render(); return; }
-
-  // order
-  var mv=t.closest("[data-move]"); if(mv){ reorder(NODES[mv.getAttribute("data-node")], mv.getAttribute("data-move")); render(); return; }
-
-  // selection checkbox handled in change; bulk buttons:
-  var bulk=t.closest("[data-bulk]"); if(bulk){ doBulk(bulk.getAttribute("data-bulk")); return; }
-  if(t.closest("#bulk-clear")){ state.selected=new Set(); render(); return; }
+  // jump from picks into coverage columns
+  var jt=t.closest("[data-jump]"); if(jt){ selectInColumns(NODES[jt.getAttribute("data-jump")]); render(); return; }
+  var je=t.closest("[data-jump-event]"); if(je){ selectInColumns(NODES[je.getAttribute("data-jump-event")]); render(); return; }
 
   // open modals
   var pv=t.closest("[data-providers]"); if(pv){ state.modal={type:"providers",nodeId:pv.getAttribute("data-providers")}; render(); return; }
@@ -1305,35 +1344,30 @@ root.addEventListener("click", function(e){
   var ageb=t.closest("[data-age]"); if(ageb){ state.modal={type:"age",nodeId:ageb.getAttribute("data-age")}; render(); return; }
   if(t.closest("#open-disabled-summary")){ state.summaryFilters={q:"",kind:"all",sport:"",type:"",channel:"both"}; state.modal={type:"disabled-summary"}; render(); return; }
 
-  // toolbar
-  if(t.closest("#expand-all")){ Object.keys(NODES).forEach(function(k){ if(NODES[k].childIds.length && NODES[k].type!=="event") state.expanded.add(k); }); render(); return; }
-  if(t.closest("#collapse-all")){ state.expanded=new Set(); render(); return; }
+  // column row select / drill (last — controls above already returned)
+  var cr=t.closest("[data-col-row]"); if(cr){ if(t.closest(".spin")) return; selectInColumns(NODES[cr.getAttribute("data-col-row")]); render(); return; }
 });
-
-function expandToNode(node){ ancestors(node).forEach(function(a){ state.expanded.add(a.id); }); if(node.childIds.length) state.expanded.add(node.id); }
-function scrollToNode(id){ /* best-effort: no-op in prototype (rows are re-rendered) */ }
-
-function doBulk(action){
-  var ch = action.indexOf("live")!==-1?"live":"prematch";
-  var val = action.indexOf("enable")===0;
-  state.selected.forEach(function(id){ var n=NODES[id]; if(n) setChannelCascade(n,ch,val); });
-  render();
-}
 
 root.addEventListener("change", function(e){
   if(e.target.id==="partner-sel"){ state.partner=e.target.value; render(); return; }
   if(e.target.id==="age-filter"){ state.ageFilter=e.target.value; render(); return; }
-  var cb=e.target.closest("[data-sel]"); if(cb){ var id=cb.getAttribute("data-sel"); if(cb.checked)state.selected.add(id); else state.selected.delete(id); render(); return; }
 });
 
 root.addEventListener("input", function(e){
   if(e.target.id==="cov-search"){ state.search=e.target.value; render(); return; }
 });
 
-/* mode segmented control */
-root.addEventListener("click", function(e){
-  var seg=e.target.closest("[data-mode]"); if(seg){ state.mode=seg.getAttribute("data-mode"); render(); }
-});
+// commit priority typed into a spinner field
+function commitPrio(el){ var node=NODES[el.getAttribute("data-prio-node")]; if(!node)return; var v=parseInt(el.value,10); if(!isNaN(v)){ setOrderPosition(node, v); } render(); }
+root.addEventListener("change", function(e){ if(e.target.classList && e.target.classList.contains("spin-in")){ commitPrio(e.target); } });
+root.addEventListener("keydown", function(e){ if(e.key==="Enter" && e.target.classList && e.target.classList.contains("spin-in")){ e.preventDefault(); commitPrio(e.target); } });
+
+/* ----- drag & drop reordering ----- */
+var dragId=null;
+root.addEventListener("dragstart", function(e){ var r=e.target.closest("[data-drag-node]"); if(!r)return; dragId=r.getAttribute("data-drag-node"); e.dataTransfer.effectAllowed="move"; try{ e.dataTransfer.setData("text/plain", dragId); }catch(_){} r.classList.add("dragging"); });
+root.addEventListener("dragover", function(e){ if(!dragId)return; var r=e.target.closest("[data-drag-node]"); if(!r)return; e.preventDefault(); e.dataTransfer.dropEffect="move"; });
+root.addEventListener("drop", function(e){ if(!dragId)return; var r=e.target.closest("[data-drag-node]"); if(r){ e.preventDefault(); var tid=r.getAttribute("data-drag-node"); if(tid!==dragId){ var rect=r.getBoundingClientRect(); var after=e.clientY>rect.top+rect.height/2; dropReorder(NODES[dragId], NODES[tid], after); } } dragId=null; render(); });
+root.addEventListener("dragend", function(){ if(dragId){ dragId=null; render(); } });
 
 /* ----- modal events ----- */
 modalRoot.addEventListener("click", function(e){
