@@ -310,6 +310,18 @@
   .cd-block { display:flex; flex-direction:column; gap:6px; }
   .cd-block > label { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.4px; color:var(--muted); }
 
+  /* picker tree */
+  .pk-tree { max-height:54vh; overflow:auto; border:1px solid var(--border); border-radius:8px; padding:4px; }
+  .pk-row { display:flex; align-items:center; gap:8px; padding:6px 8px; border-radius:7px; font-size:12.5px; }
+  .pk-row:hover { background:var(--row-hover); }
+  .pk-branch { cursor:pointer; font-weight:600; }
+  .pk-row .pk-tw { width:14px; height:14px; display:inline-flex; align-items:center; justify-content:center; color:var(--muted); transition:transform .12s; flex-shrink:0; }
+  .pk-row .pk-tw.open { transform:rotate(90deg); }
+  .pk-name { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .pk-row input[type=checkbox] { accent-color:var(--accent); width:15px; height:15px; flex-shrink:0; cursor:pointer; }
+  .pk-row label.pk-row, label.pk-row { cursor:pointer; }
+  .pk-added { font-size:10px; font-weight:700; color:var(--pos); background:var(--live-soft); padding:1px 8px; border-radius:999px; }
+
   /* disabled-summary modal */
   .seg button.on { background:var(--accent); color:#fff; }
   .sum-filters { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:12px; }
@@ -1242,20 +1254,46 @@ function disabledSummaryModal(){
 }
 
 /* --- picker modal (add picked tournaments/events) --- */
-function pickerModal(type, title, pickedArr, kind){
+function pickerModal(leafType, title, pickedArr, kind){
+  // leafType: "tournament" (pick tournaments) or "event" (pick events)
   var q=(state.modal.q||"").toLowerCase();
-  var pool = allOfType(type).filter(function(n){
-    if(pickedArr.indexOf(n.id)!==-1) return false;
+  if(!state.modal.exp) state.modal.exp=new Set();
+  var exp=state.modal.exp;
+
+  function matches(node){
     if(!q) return true;
-    return n.name.toLowerCase().indexOf(q)!==-1 || pathLabel(n).toLowerCase().indexOf(q)!==-1;
-  }).slice(0,80);
-  var rows = pool.map(function(n){
-    return '<div class="checkline"><input type="checkbox" data-pick="'+n.id+'" data-pick-kind="'+kind+'"><div><b>'+esc(n.name)+'</b>'+(n.date?' <span class="sub-muted">· '+fmtWhen(n.date)+'</span>':'')+'<div class="sub-muted">'+esc(pathLabel(NODES[n.parentId]))+'</div></div></div>';
-  }).join("") || '<div class="sub-muted">No matches.</div>';
-  var body = '<input class="search-box" id="picker-search" placeholder="Search '+type+'s…" value="'+esc(state.modal.q||"")+'" style="width:100%; max-width:none; margin-bottom:12px">'
-    + '<div style="max-height:46vh; overflow:auto">'+rows+'</div>';
-  return shell(title, 'Tick items to add — they will surface in the iframe left tree', body,
-    '<span class="sub-muted spacer">Showing first 80 matches</span><button class="btn" id="modal-close">Done</button>', false);
+    if(node.name.toLowerCase().indexOf(q)!==-1) return true;
+    return node.childIds.some(function(id){ return matches(NODES[id]); });
+  }
+  function nodeRow(node, depth){
+    if(!matches(node)) return "";
+    var isLeaf = node.type===leafType;
+    if(isLeaf){
+      var already=pickedArr.indexOf(node.id)!==-1;
+      return '<label class="pk-row" style="padding-left:'+(10+depth*18)+'px">'
+        + '<input type="checkbox" data-pick="'+node.id+'" data-pick-kind="'+kind+'"'+(already?' checked disabled':'')+'>'
+        + '<span class="dim-tag '+LEVEL_TAG[node.type]+'">'+LEVEL_TAG[node.type]+'</span>'
+        + '<span class="pk-name">'+esc(node.name)+'</span>'
+        + (node.date?'<span class="sub-muted">'+fmtWhen(node.date)+'</span>':'')
+        + (already?'<span class="pk-added">added</span>':'')
+      + '</label>';
+    }
+    var open = exp.has(node.id) || !!q; // auto-expand while searching
+    var html = '<div class="pk-row pk-branch" data-pk-exp="'+node.id+'" style="padding-left:'+(10+depth*18)+'px">'
+      + '<span class="pk-tw '+(open?'open':'')+'">'+CHEVRON+'</span>'
+      + '<span class="dim-tag '+LEVEL_TAG[node.type]+'">'+LEVEL_TAG[node.type]+'</span>'
+      + '<span class="pk-name">'+esc(node.name)+'</span>'
+      + '<span class="sub-muted">'+node.childIds.length+'</span>'
+    + '</div>';
+    if(open) html += sortedChildren(node).map(function(c){ return nodeRow(c, depth+1); }).join("");
+    return html;
+  }
+  var tree = sortedChildren(null).map(function(sp){ return nodeRow(sp,0); }).join("") || '<div class="sub-muted" style="padding:10px">No matches.</div>';
+
+  var body = '<input class="search-box" id="picker-search" placeholder="Search the tree…" value="'+esc(state.modal.q||"")+'" style="width:100%; max-width:none; margin-bottom:12px">'
+    + '<div class="pk-tree">'+tree+'</div>';
+  return shell(title, 'Browse the sports tree and tick '+leafType+'s to add — they will surface in the iframe left tree', body,
+    '<span class="sub-muted spacer">'+pickedArr.length+' currently picked</span><button class="btn primary" id="modal-close">Done</button>', true);
 }
 
 /* ============================================================
@@ -1329,8 +1367,8 @@ root.addEventListener("click", function(e){
   var upe=t.closest("[data-unpin-event]"); if(upe){ var eid=upe.getAttribute("data-unpin-event"); PICKED_EVENTS=PICKED_EVENTS.filter(function(x){return x!==eid;}); render(); return; }
 
   // open pickers
-  if(t.closest("#add-picked-trn")){ state.modal={type:"add-picked-trn",q:""}; render(); return; }
-  if(t.closest("#add-picked-event")){ state.modal={type:"add-picked-event",q:""}; render(); return; }
+  if(t.closest("#add-picked-trn")){ state.modal={type:"add-picked-trn",q:"",exp:new Set()}; render(); return; }
+  if(t.closest("#add-picked-event")){ state.modal={type:"add-picked-event",q:"",exp:new Set()}; render(); return; }
 
   // jump from picks into coverage columns
   var jt=t.closest("[data-jump]"); if(jt){ selectInColumns(NODES[jt.getAttribute("data-jump")]); render(); return; }
@@ -1373,6 +1411,9 @@ root.addEventListener("dragend", function(){ if(dragId){ dragId=null; render(); 
 modalRoot.addEventListener("click", function(e){
   var t=e.target;
   if(t.id==="overlay" || t.id==="modal-close" || t.id==="modal-close2"){ state.modal=null; render(); return; }
+
+  // picker tree expand/collapse
+  var px=t.closest("[data-pk-exp]"); if(px){ var pid=px.getAttribute("data-pk-exp"); if(!state.modal.exp)state.modal.exp=new Set(); if(state.modal.exp.has(pid))state.modal.exp.delete(pid); else state.modal.exp.add(pid); render(); return; }
 
   // disabled-summary filters
   var sk=t.closest("[data-sum-kind]"); if(sk){ state.summaryFilters.kind=sk.getAttribute("data-sum-kind"); render(); return; }
