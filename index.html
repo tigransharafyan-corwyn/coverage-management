@@ -1,0 +1,1309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Coverage Management — Betting Backoffice</title>
+<style>
+  :root {
+    --bg: #f4f6f9;
+    --panel: #ffffff;
+    --border: #e3e8ef;
+    --border-strong: #cdd5e0;
+    --text: #1d2733;
+    --muted: #69788c;
+    --accent: #2f6df6;
+    --accent-soft: #eaf1ff;
+    --pos: #12824a;
+    --neg: #d23f3f;
+    --warn: #b7791f;
+    --warn-soft: #fdf3e2;
+    --live: #0ca678;        /* live channel */
+    --live-soft: #e3faf3;
+    --prematch: #2f6df6;    /* prematch channel */
+    --prematch-soft: #eaf1ff;
+    --row-hover: #f7f9fc;
+    --shadow: 0 1px 2px rgba(16,24,40,.06), 0 1px 3px rgba(16,24,40,.10);
+    --shadow-lg: 0 12px 40px rgba(16,24,40,.20);
+    --radius: 10px;
+    --depth-tint: #f0f4fa;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg); color: var(--text); font-size: 13px; -webkit-font-smoothing: antialiased;
+  }
+  .app { max-width: 1640px; margin: 0 auto; padding: 18px 22px 40px; }
+  .topbar { display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; flex-wrap:wrap; gap:12px;}
+  .topbar h1 { font-size: 20px; margin: 0; font-weight: 650; letter-spacing:-.2px;}
+  .topbar .sub { color: var(--muted); font-size: 12px; margin-top:3px;}
+  .topbar-right { display:flex; align-items:center; gap:14px; flex-wrap:wrap;}
+
+  .ctx-field { display:flex; flex-direction:column; gap:4px; }
+  .ctx-field label { font-size:10px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.4px;}
+  select.input, input.input {
+    border:1px solid var(--border-strong); background:#fff; border-radius:8px; padding:8px 10px; font-size:12.5px;
+    color:var(--text); font-family:inherit; min-height:34px;
+  }
+  select.input:focus, input.input:focus { outline:none; border-color:var(--accent); }
+
+  .kpis { display:grid; grid-template-columns: repeat(5, 1fr); gap:12px; margin-bottom:16px; }
+  .kpi { background:var(--panel); border:1px solid var(--border); border-radius:var(--radius); padding:12px 14px; box-shadow:var(--shadow);}
+  .kpi .label { color:var(--muted); font-size:10.5px; text-transform:uppercase; letter-spacing:.4px; font-weight:600;}
+  .kpi .value { font-size:19px; font-weight:650; margin-top:5px; letter-spacing:-.3px;}
+  .kpi .value.pos { color:var(--pos);} .kpi .value.neg { color:var(--neg);} .kpi .value.live{color:var(--live);} .kpi .value.pre{color:var(--prematch);}
+
+  .panel { background:var(--panel); border:1px solid var(--border); border-radius:var(--radius); box-shadow:var(--shadow); margin-bottom:16px;}
+  .panel-head { padding:11px 14px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:10px; }
+  .panel-head h2 { font-size:13px; margin:0; font-weight:650; }
+  .panel-head .hint { color:var(--muted); font-size:11px; font-weight:400;}
+  .panel-body { padding:14px; }
+  .spacer { flex:1; }
+
+  /* shell: left tree + main */
+  .cov-shell { display:grid; grid-template-columns: 296px 1fr; gap:16px; align-items:start; }
+  @media (max-width:1100px){ .cov-shell{ grid-template-columns:1fr; } }
+
+  /* ---------- left iframe tree ---------- */
+  .sidebar { position:sticky; top:14px; }
+  .side-block { border-bottom:1px solid var(--border); }
+  .side-block:last-child { border-bottom:none; }
+  .side-title { display:flex; align-items:center; gap:8px; padding:10px 14px; font-size:11px; font-weight:700;
+    text-transform:uppercase; letter-spacing:.5px; color:var(--muted); }
+  .side-title .count { margin-left:auto; background:var(--accent-soft); color:var(--accent); border-radius:999px; padding:1px 7px; font-size:10px; font-weight:700;}
+  .side-add { margin-left:auto; border:1px dashed var(--border-strong); background:#fff; border-radius:7px; width:22px; height:22px; cursor:pointer; color:var(--muted); font-weight:700; line-height:1; padding:0;}
+  .side-add:hover{ border-color:var(--accent); color:var(--accent);}
+  .pin-item, .nav-item { display:flex; align-items:center; gap:8px; padding:8px 14px; cursor:pointer; font-size:12.5px; border-left:3px solid transparent;}
+  .pin-item:hover, .nav-item:hover { background:var(--row-hover); }
+  .nav-item.active { background:var(--accent-soft); border-left-color:var(--accent); color:var(--accent); font-weight:600;}
+  .pin-item .ic, .nav-item .ic { width:16px; text-align:center; flex-shrink:0;}
+  .pin-item .name { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .pin-item .x { color:var(--muted); opacity:.5; font-weight:700; }
+  .pin-item:hover .x { opacity:1; }
+  .pin-item .x:hover { color:var(--neg); }
+  .nav-item .badge { margin-left:auto; background:#eef2f7; color:var(--muted); border-radius:999px; padding:1px 7px; font-size:10px; font-weight:700;}
+
+  .stree { padding:4px 0 8px; max-height:340px; overflow:auto; }
+  .snode { font-size:12.5px; }
+  .srow { display:flex; align-items:center; gap:6px; padding:5px 12px; cursor:pointer; border-left:3px solid transparent;}
+  .srow:hover { background:var(--row-hover);}
+  .srow.sel { background:var(--accent-soft); border-left-color:var(--accent);}
+  .srow .tw { width:14px; height:14px; display:inline-flex; align-items:center; justify-content:center; color:var(--muted); transition:transform .12s; flex-shrink:0;}
+  .srow .tw.open { transform:rotate(90deg);} .srow .tw.leaf{ visibility:hidden;}
+  .srow .ic { width:15px; text-align:center; flex-shrink:0; }
+  .srow .nm { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .srow .dot { width:7px; height:7px; border-radius:50%; flex-shrink:0;}
+  .dot.both{ background:var(--pos);} .dot.partial{ background:var(--warn);} .dot.off{ background:var(--neg);}
+
+  /* ---------- toolbar ---------- */
+  .toolbar { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  .btn { border:1px solid var(--border-strong); background:#fff; border-radius:8px; padding:7px 12px; cursor:pointer; font-size:12.5px; font-weight:600; color:var(--text); display:inline-flex; align-items:center; gap:6px;}
+  .btn:hover { border-color:var(--accent); color:var(--accent);}
+  .btn.primary { background:var(--accent); border-color:var(--accent); color:#fff; }
+  .btn.primary:hover { filter:brightness(1.05); color:#fff; }
+  .btn.danger { color:var(--neg); }
+  .btn.danger:hover { border-color:var(--neg); background:#fdecec;}
+  .btn.sm { padding:4px 9px; font-size:11.5px; }
+  .btn:disabled { opacity:.45; cursor:not-allowed; }
+  .search-box { border:1px solid var(--border-strong); border-radius:8px; padding:8px 10px; font-size:12.5px; max-width:240px; width:240px;}
+
+  .chip { display:inline-flex; align-items:center; gap:7px; padding:6px 11px; border:1px solid var(--border-strong);
+    border-radius:999px; cursor:pointer; user-select:none; background:#fff; font-size:12px; font-weight:550; transition:.12s; }
+  .chip:hover { border-color:var(--accent); }
+  .chip.on { background:var(--accent-soft); border-color:var(--accent); color:var(--accent); }
+
+  /* segmented mode control */
+  .seg { display:inline-flex; border:1px solid var(--border-strong); border-radius:8px; overflow:hidden; }
+  .seg button { border:none; background:#fff; padding:7px 13px; font-size:12px; font-weight:600; cursor:pointer; color:var(--muted); border-right:1px solid var(--border-strong);}
+  .seg button:last-child { border-right:none;}
+  .seg button.on { color:#fff; }
+  .seg button.on[data-mode="both"]{ background:var(--text);}
+  .seg button.on[data-mode="live"]{ background:var(--live);}
+  .seg button.on[data-mode="prematch"]{ background:var(--prematch);}
+
+  /* selection bar */
+  .selbar { display:flex; align-items:center; gap:10px; padding:9px 14px; background:var(--accent-soft); border:1px solid var(--accent); border-radius:8px; margin-bottom:12px; flex-wrap:wrap;}
+  .selbar .lead { font-weight:650; color:var(--accent); }
+
+  /* ---------- main coverage table ---------- */
+  .table-wrap { overflow:auto; }
+  table.cov { border-collapse:collapse; width:100%; font-size:12.5px; }
+  table.cov thead th {
+    position:sticky; top:0; z-index:5; background:#f8fafc; text-align:center; padding:10px 10px; font-weight:650; color:var(--muted);
+    border-bottom:1px solid var(--border-strong); font-size:10.5px; text-transform:uppercase; letter-spacing:.4px; white-space:nowrap;
+  }
+  table.cov thead th.lbl { text-align:left; }
+  table.cov tbody td { padding:0; border-bottom:1px solid var(--border); text-align:center; white-space:nowrap; vertical-align:middle;}
+  table.cov tbody td .cell { padding:7px 10px; }
+  table.cov tbody tr:hover { background:var(--row-hover); }
+  table.cov td.lbl { text-align:left; }
+  td.lbl .cell { display:flex; align-items:center; gap:7px; }
+  .twisty { width:16px; height:16px; display:inline-flex; align-items:center; justify-content:center; cursor:pointer; color:var(--muted); flex-shrink:0; transition:transform .12s; border-radius:4px;}
+  .twisty:hover { background:var(--border); color:var(--text);}
+  .twisty.open { transform:rotate(90deg); }
+  .twisty.leaf { visibility:hidden; }
+  .dim-tag { font-size:9.5px; text-transform:uppercase; letter-spacing:.4px; color:var(--muted); background:#eef2f7; border-radius:4px; padding:1px 5px; font-weight:700; flex-shrink:0;}
+  .dim-tag.SPT{ background:#e7f0ff; color:#2f6df6;}
+  .dim-tag.CAT{ background:#eef7ec; color:#3a8a3a;}
+  .dim-tag.TRN{ background:#fdf3e2; color:#b7791f;}
+  .dim-tag.EVT{ background:#f3eefb; color:#7c4dd6;}
+  .dim-tag.MKT{ background:#fbeef3; color:#c43d7a;}
+  .name { font-weight:550; }
+  .name.dis { color:var(--muted); text-decoration:line-through; text-decoration-color:var(--border-strong);}
+  .rowtag { font-size:10px; padding:1px 6px; border-radius:5px; font-weight:700; }
+  .rowtag.flag { background:#eef2f7; color:var(--muted); }
+  .sub-muted { color:var(--muted); font-size:11px;}
+  .cb-sel { width:14px; height:14px; accent-color:var(--accent); cursor:pointer;}
+
+  /* toggle switch */
+  .sw { position:relative; display:inline-flex; align-items:center; gap:7px; cursor:pointer; user-select:none;}
+  .sw .track { width:34px; height:19px; border-radius:999px; background:var(--border-strong); position:relative; transition:.15s; flex-shrink:0;}
+  .sw .track:after { content:""; position:absolute; top:2px; left:2px; width:15px; height:15px; border-radius:50%; background:#fff; transition:.15s; box-shadow:0 1px 2px rgba(0,0,0,.2);}
+  .sw.on[data-ch="live"] .track { background:var(--live);}
+  .sw.on[data-ch="prematch"] .track { background:var(--prematch);}
+  .sw.on .track:after { left:17px; }
+  .sw.inherited-off .track { background:#f0c7c7; }
+  .sw.disabled { opacity:.5; cursor:not-allowed;}
+  .ch-cell { display:flex; flex-direction:column; align-items:center; gap:3px;}
+  .inh-note { font-size:9.5px; color:var(--neg); font-weight:600;}
+  .inh-note.ok { color:var(--muted); }
+
+  /* order control */
+  .ord { display:inline-flex; align-items:center; gap:2px; }
+  .ord .num { font-variant-numeric:tabular-nums; font-weight:700; min-width:20px; text-align:center;}
+  .ord button { border:1px solid var(--border); background:#fff; width:20px; height:20px; border-radius:5px; cursor:pointer; color:var(--muted); padding:0; line-height:1; font-size:11px;}
+  .ord button:hover:not(:disabled){ border-color:var(--accent); color:var(--accent);}
+  .ord button:disabled{ opacity:.3; cursor:not-allowed;}
+
+  /* small inline badges */
+  .pbadge { display:inline-flex; align-items:center; gap:5px; padding:3px 8px; border-radius:6px; font-size:11px; font-weight:600; cursor:pointer; border:1px solid var(--border); background:#fff;}
+  .pbadge:hover{ border-color:var(--accent);}
+  .pbadge .prio { background:var(--accent); color:#fff; border-radius:4px; padding:0 5px; font-size:9.5px; font-weight:700;}
+  .tmpl-badge { display:inline-flex; align-items:center; gap:5px; padding:3px 8px; border-radius:6px; font-size:11px; font-weight:600; cursor:pointer; border:1px solid var(--border);}
+  .tmpl-badge.set{ background:var(--accent-soft); border-color:var(--accent); color:var(--accent);}
+  .tmpl-badge.none{ background:#fff; color:var(--muted);}
+  .tmpl-badge:hover{ border-color:var(--accent);}
+  .age-badge { font-size:10px; font-weight:700; padding:2px 7px; border-radius:999px; background:#eef2f7; color:var(--muted); cursor:pointer; border:1px solid transparent;}
+  .age-badge:hover{ border-color:var(--accent);}
+  .mkt-link { font-size:11px; font-weight:600; color:var(--accent); cursor:pointer; }
+  .mkt-link:hover { text-decoration:underline;}
+  .mkt-link .warnnum{ color:var(--neg);}
+  .icon-btn { border:1px solid var(--border); background:#fff; border-radius:6px; width:26px; height:26px; cursor:pointer; color:var(--muted); padding:0; display:inline-flex; align-items:center; justify-content:center;}
+  .icon-btn:hover { border-color:var(--accent); color:var(--accent);}
+
+  .legend { color:var(--muted); font-size:11px; padding:9px 14px; border-top:1px solid var(--border); display:flex; gap:18px; flex-wrap:wrap; align-items:center;}
+  .legend .dot { width:8px; height:8px; border-radius:50%; display:inline-block; margin-right:5px;}
+  .empty-state { padding:48px; text-align:center; color:var(--muted); }
+  .footer-note { color:var(--muted); font-size:11px; text-align:center; margin-top:8px;}
+
+  /* ---------- modal ---------- */
+  .overlay { position:fixed; inset:0; background:rgba(16,24,40,.45); z-index:100; display:flex; align-items:flex-start; justify-content:center; padding:48px 16px; overflow:auto;}
+  .modal { background:#fff; border-radius:14px; box-shadow:var(--shadow-lg); width:100%; max-width:760px; overflow:hidden; animation:pop .12s ease-out;}
+  .modal.wide { max-width:980px; }
+  @keyframes pop { from{ transform:translateY(8px); opacity:.6;} to{ transform:none; opacity:1;} }
+  .modal-head { padding:16px 20px; border-bottom:1px solid var(--border); display:flex; align-items:flex-start; gap:12px;}
+  .modal-head h3 { margin:0; font-size:16px; font-weight:650;}
+  .modal-head .mh-sub { color:var(--muted); font-size:12px; margin-top:3px;}
+  .modal-head .x { margin-left:auto; cursor:pointer; color:var(--muted); font-size:22px; line-height:1; border:none; background:none; padding:0;}
+  .modal-head .x:hover { color:var(--text);}
+  .modal-body { padding:18px 20px; max-height:62vh; overflow:auto;}
+  .modal-foot { padding:14px 20px; border-top:1px solid var(--border); display:flex; gap:10px; justify-content:flex-end; align-items:center;}
+
+  .tabs { display:flex; gap:4px; border-bottom:1px solid var(--border); margin:-4px 0 16px;}
+  .tabs button { border:none; background:none; padding:9px 12px; font-size:12.5px; font-weight:600; color:var(--muted); cursor:pointer; border-bottom:2px solid transparent;}
+  .tabs button.on { color:var(--accent); border-bottom-color:var(--accent);}
+
+  table.grid { border-collapse:collapse; width:100%; font-size:12.5px;}
+  table.grid th { text-align:left; padding:8px 10px; font-size:10.5px; text-transform:uppercase; letter-spacing:.4px; color:var(--muted); border-bottom:1px solid var(--border-strong); font-weight:650;}
+  table.grid th.c { text-align:center;}
+  table.grid td { padding:7px 10px; border-bottom:1px solid var(--border); text-align:left; vertical-align:middle;}
+  table.grid td.c { text-align:center;}
+  table.grid tr:hover { background:var(--row-hover);}
+  .eff-badge { font-size:10px; font-weight:700; padding:1px 7px; border-radius:5px;}
+  .eff-on{ background:var(--live-soft); color:var(--live);}
+  .eff-off{ background:#fdecec; color:var(--neg);}
+  .eff-inh{ background:#eef2f7; color:var(--muted);}
+  .eff-exc{ background:var(--warn-soft); color:var(--warn);}
+
+  .prov-row { display:flex; align-items:center; gap:10px; padding:9px 12px; border:1px solid var(--border); border-radius:9px; margin-bottom:8px; background:#fff;}
+  .prov-row .grab { color:var(--muted); cursor:grab; }
+  .prov-row .pnum { width:22px; height:22px; border-radius:6px; background:var(--accent); color:#fff; font-weight:700; display:inline-flex; align-items:center; justify-content:center; font-size:11px;}
+  .prov-row .pname { font-weight:600; flex:1;}
+  .prov-row .pmeta { color:var(--muted); font-size:11px;}
+
+  .tmpl-card { border:1px solid var(--border); border-radius:10px; padding:12px 14px; margin-bottom:10px; }
+  .tmpl-card.applied { border-color:var(--accent); background:var(--accent-soft);}
+  .tmpl-card .tc-head { display:flex; align-items:center; gap:10px; }
+  .tmpl-card .tc-name { font-weight:650; font-size:13.5px;}
+  .tmpl-card .tc-meta { color:var(--muted); font-size:11.5px; margin-top:2px;}
+  .mkt-pill { display:inline-block; font-size:10.5px; padding:2px 7px; border-radius:5px; background:#eef2f7; color:var(--text); margin:2px 3px 0 0;}
+
+  .info-banner { background:var(--warn-soft); border:1px solid #f0d9a8; color:#8a5a12; border-radius:8px; padding:9px 12px; font-size:12px; margin-bottom:14px; display:flex; gap:8px; align-items:flex-start;}
+  .info-banner.blue{ background:var(--accent-soft); border-color:#bcd2fb; color:#2453b8;}
+
+  .summary-grp { margin-bottom:18px; }
+  .summary-grp h4 { margin:0 0 8px; font-size:12.5px; }
+  .summary-item { display:flex; align-items:center; gap:8px; padding:6px 10px; border-radius:7px; font-size:12px;}
+  .summary-item:nth-child(even){ background:var(--row-hover);}
+  .ppath { color:var(--muted); }
+  .pillrow { display:flex; gap:6px; flex-wrap:wrap; }
+  label.fld { display:block; font-size:11px; font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:.3px; margin-bottom:5px;}
+  .checkline { display:flex; align-items:center; gap:8px; padding:6px 4px; font-size:12.5px;}
+  .checkline input { accent-color:var(--accent); width:15px; height:15px;}
+
+  .pe-card { display:flex; align-items:center; gap:12px; padding:11px 14px; border:1px solid var(--border); border-radius:10px; margin-bottom:9px;}
+  .pe-card .pe-when { font-size:11px; color:var(--muted); }
+  .pe-card .pe-name { font-weight:650; }
+  .pe-card .pe-path { font-size:11px; color:var(--muted);}
+  .live-pill { font-size:9.5px; font-weight:700; padding:1px 6px; border-radius:4px; background:var(--live-soft); color:var(--live); text-transform:uppercase; letter-spacing:.3px;}
+  .views { display:flex; gap:4px; }
+  .views button { border:1px solid var(--border-strong); background:#fff; padding:7px 13px; font-size:12.5px; font-weight:600; cursor:pointer; color:var(--muted);}
+  .views button:first-child{ border-radius:8px 0 0 8px;}
+  .views button:last-child{ border-radius:0 8px 8px 0; border-left:none;}
+  .views button.on{ background:var(--accent-soft); color:var(--accent); border-color:var(--accent);}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<div id="modal-root"></div>
+
+<script>
+"use strict";
+/* ===================================================================
+   Coverage Management — self-contained backoffice prototype.
+   Pure vanilla JS · matches the reporting theme · runs via file://
+   =================================================================== */
+
+/* ----------------------------- RNG ----------------------------- */
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;var t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+var rng = mulberry32(20260629);
+function ri(lo,hi){return Math.floor(rng()*(hi-lo+1))+lo;}
+function pick(arr){return arr[Math.floor(rng()*arr.length)];}
+function chance(p){ return rng()<p; }
+
+/* ----------------------------- Reference data ----------------------------- */
+var PARTNERS = [
+  {id:"acme",  name:"Acme Bet (BR)"},
+  {id:"lucky", name:"LuckyStar (NG)"},
+  {id:"europlay", name:"EuroPlay (DE)"},
+  {id:"apex",  name:"Apex Sports (UK)"},
+  {id:"monde", name:"BetMonde (FR)"},
+  {id:"gold",  name:"GoldBet (IT)"}
+];
+var PROVIDERS = ["Betradar","BetGenius","LSports","OddsMatrix","TXOdds","Internal Trading","BetConstruct","Stats Perform"];
+var AGE_GROUPS = ["Senior","U23","U21","U19","U17","Women","Youth","Amateur","Reserve"];
+
+/* per-sport market catalogs (key + label) */
+function mk(label){ return {key:label.toLowerCase().replace(/[^a-z0-9]+/g,"_").replace(/^_|_$/g,""), label:label}; }
+var MARKET_CATALOG = {
+  "Football": ["Match Result (1X2)","Double Chance","Draw No Bet","Total Goals O/U","Both Teams To Score","Asian Handicap","Correct Score","HT/FT","First Goalscorer","Anytime Goalscorer","Total Corners","Total Cards","Total Bookings O/U","Clean Sheet","Win To Nil","Half Time Result","Total Goals Odd/Even","Team Total Goals"].map(mk),
+  "Basketball": ["Money Line","Point Spread","Total Points O/U","Money Line (incl. OT)","Race To 20 Points","Total Points Odd/Even","Highest Scoring Quarter","Player Points O/U","Player Rebounds O/U","Player Assists O/U","Team Total Points","Winning Margin"].map(mk),
+  "Tennis": ["Match Winner","Set Betting","Total Games O/U","First Set Winner","Total Sets","Player To Win A Set","Correct Score (Sets)","Game Handicap","Tie Break In Match","Player Aces O/U"].map(mk),
+  "Ice Hockey": ["Money Line (3-Way)","Money Line (incl. OT)","Puck Line","Total Goals O/U","Both Teams To Score","Period 1 Winner","Total Goals Odd/Even","First Goal","Team Total Goals"].map(mk),
+  "Baseball": ["Money Line","Run Line","Total Runs O/U","First 5 Innings Winner","Total Runs Odd/Even","Team Total Runs","Player Home Run","Player Hits O/U"].map(mk),
+  "American Football": ["Money Line","Point Spread","Total Points O/U","First Half Spread","Total Points Odd/Even","Player Anytime TD","Player Passing Yards O/U","Highest Scoring Quarter","Winning Margin"].map(mk),
+  "Volleyball": ["Match Winner","Set Handicap","Total Points O/U","Correct Score (Sets)","First Set Winner","Total Sets"].map(mk),
+  "Handball": ["Match Result (1X2)","Total Goals O/U","Handicap","Both Teams To Score","Half Time Result","Winning Margin"].map(mk),
+  "Rugby": ["Match Result (1X2)","Handicap","Total Points O/U","Half Time Result","Winning Margin","First Try Scorer"].map(mk),
+  "MMA": ["Match Winner","Method Of Victory","Total Rounds O/U","Fight To Go The Distance","Round Betting","Winner & Method"].map(mk),
+  "Boxing": ["Match Winner","Method Of Victory","Total Rounds O/U","Fight To Go The Distance","Round Betting","Winner & Round"].map(mk),
+  "eSports": ["Match Winner","Map Handicap","Total Maps O/U","First Blood","Map 1 Winner","Correct Score (Maps)","Total Rounds Map 1"].map(mk),
+  "Cricket": ["Match Winner","Top Batsman","Total Runs O/U","Total Sixes","Man Of The Match","Innings Runs O/U","Method Of Dismissal"].map(mk),
+  "Darts": ["Match Winner","Set Handicap","Total 180s O/U","Most 180s","Correct Score (Sets)","Highest Checkout"].map(mk),
+  "Snooker": ["Match Winner","Frame Handicap","Total Frames O/U","Highest Break O/U","Correct Score","Century Break In Match"].map(mk),
+  "Table Tennis": ["Match Winner","Set Handicap","Total Points O/U","Correct Score (Sets)","First Set Winner"].map(mk),
+  "Badminton": ["Match Winner","Game Handicap","Total Points O/U","First Game Winner","Correct Score"].map(mk),
+  "Futsal": ["Match Result (1X2)","Total Goals O/U","Both Teams To Score","Handicap","Half Time Result"].map(mk),
+  "Water Polo": ["Match Result (1X2)","Total Goals O/U","Handicap","Half Time Result"].map(mk),
+  "Formula 1": ["Race Winner","Podium Finish","Fastest Lap","Winning Constructor","Head-to-Head","Points Finish","Safety Car"].map(mk),
+  "Cycling": ["Stage Winner","Overall Winner","Top 3 Finish","Head-to-Head","Points Classification"].map(mk),
+  "Golf": ["Tournament Winner","Top 5 Finish","Top 10 Finish","Make The Cut","Head-to-Head (Round)","Nationality Of Winner"].map(mk),
+  "Beach Volleyball": ["Match Winner","Set Handicap","Total Points O/U","First Set Winner"].map(mk)
+};
+function marketsFor(sport){ return MARKET_CATALOG[sport] || MARKET_CATALOG["Football"]; }
+
+/* ----------------------------- Coverage tree ----------------------------- */
+var SPORT_TREE = {
+  "Football": { "England":["Premier League","Championship","FA Cup","League One","EFL Trophy"], "Spain":["La Liga","La Liga 2","Copa del Rey"], "Italy":["Serie A","Serie B","Coppa Italia"], "Germany":["Bundesliga","2. Bundesliga","DFB Pokal"], "France":["Ligue 1","Ligue 2"], "International":["UEFA Champions League","UEFA Europa League","World Cup Qualifiers","Club Friendlies"], "Brazil":["Brasileirão Série A","Copa do Brasil"], "Netherlands":["Eredivisie"], "Portugal":["Primeira Liga"], "USA":["MLS"] },
+  "Basketball": { "USA":["NBA","NCAA","WNBA"], "Europe":["EuroLeague","EuroCup"], "Spain":["Liga ACB"], "Italy":["Lega Basket Serie A"], "Germany":["BBL"], "International":["FIBA World Cup"] },
+  "Tennis": { "ATP":["Wimbledon","US Open","Australian Open","ATP Masters Miami","ATP 500 Vienna"], "WTA":["Roland Garros","WTA 1000 Madrid","WTA Finals"], "Challenger":["Challenger Prague","Challenger Phoenix"], "ITF":["ITF Cairo","ITF Antalya"] },
+  "Ice Hockey": { "USA":["NHL"], "Sweden":["SHL"], "Finland":["Liiga"], "Russia":["KHL"], "Czechia":["Extraliga"], "International":["IIHF World Championship"] },
+  "Baseball": { "USA":["MLB"], "Japan":["NPB"], "Korea":["KBO"], "International":["WBC"] },
+  "American Football": { "USA":["NFL","NCAAF"], "International":["NFL International Series"] },
+  "Volleyball": { "Italy":["SuperLega"], "Poland":["PlusLiga"], "Russia":["Super League"], "International":["VNL"] },
+  "Handball": { "Germany":["HBL"], "France":["LNH"], "Spain":["Liga ASOBAL"], "International":["EHF Champions League"] },
+  "Rugby": { "England":["Premiership"], "France":["Top 14"], "International":["Six Nations","Rugby World Cup"] },
+  "MMA": { "UFC":["UFC Fight Night","UFC Main Card","UFC Numbered Event"], "Bellator":["Bellator Main Card"], "PFL":["PFL Regular Season"] },
+  "Boxing": { "World":["Heavyweight Title","Welterweight Title","Undercard Series"] },
+  "eSports": { "Counter-Strike 2":["IEM Major","BLAST Premier","ESL Pro League"], "Dota 2":["The International","DreamLeague"], "League of Legends":["LEC","LCK","Worlds"], "Valorant":["VCT Masters"] },
+  "Cricket": { "India":["IPL"], "Australia":["Big Bash League"], "England":["The Hundred","County Championship"], "International":["Test Series","T20 World Cup","ODI Series"] },
+  "Darts": { "PDC":["World Championship","Premier League Darts","World Matchplay"] },
+  "Snooker": { "World":["World Championship","UK Championship","Masters"] },
+  "Table Tennis": { "International":["WTT Champions","Olympic Qualifier"], "Czechia":["TT Cup"] },
+  "Badminton": { "International":["BWF World Tour","Thomas Cup"] },
+  "Futsal": { "Spain":["Primera División"], "International":["UEFA Futsal Champions League"] },
+  "Water Polo": { "International":["World League"], "Hungary":["OB I"] },
+  "Formula 1": { "World":["Grand Prix Weekend"] },
+  "Cycling": { "World":["Tour de France","Giro d'Italia","UCI World Tour"] },
+  "Golf": { "PGA":["The Masters","US Open","PGA Championship"], "European Tour":["BMW PGA Championship"] },
+  "Beach Volleyball": { "International":["Beach Pro Tour"] }
+};
+
+var TEAMS = {
+  "Football": ["Arsenal","Chelsea","Liverpool","Man City","Real Madrid","Barcelona","Juventus","Inter","Bayern","Dortmund","Napoli","Atletico","PSG","Marseille","Ajax","Porto","Flamengo","Palmeiras","Tottenham","Newcastle"],
+  "Basketball": ["Lakers","Celtics","Warriors","Bucks","Real Madrid","Barcelona","Olympiacos","Fenerbahce","Heat","Nuggets","Bayern","Milan"],
+  "Tennis": ["Djokovic","Alcaraz","Sinner","Medvedev","Swiatek","Sabalenka","Gauff","Rybakina","Zverev","Ruud","Rune","Fritz"],
+  "Ice Hockey": ["Bruins","Rangers","Maple Leafs","Oilers","Frolunda","Skelleftea","Lulea","Vaxjo","SKA","CSKA","Sparta","Tappara"],
+  "Baseball": ["Yankees","Dodgers","Red Sox","Cubs","Giants","Mets","Astros","Braves","Giants Tokyo","Hanshin","Doosan","LG Twins"],
+  "American Football": ["Chiefs","49ers","Cowboys","Eagles","Bills","Ravens","Bengals","Lions","Packers","Dolphins"],
+  "Volleyball": ["Perugia","Modena","Trento","Civitanova","Milano","Piacenza","Zaksa","Resovia","Zenit","Lokomotiv"],
+  "Handball": ["Kiel","Flensburg","Magdeburg","Berlin","PSG","Nantes","Barcelona","Veszprem","Kielce","Aalborg"],
+  "Rugby": ["Saracens","Leicester","Toulouse","La Rochelle","England","Ireland","France","Wales","Leinster","Munster"],
+  "MMA": ["Jones","Adesanya","Makhachev","Pereira","O'Malley","Volkanovski","Edwards","Du Plessis","Pantoja","Topuria"],
+  "Boxing": ["Fury","Usyk","Joshua","Wilder","Canelo","Crawford","Davis","Garcia","Beterbiev","Bivol"],
+  "eSports": ["NAVI","FaZe","Vitality","G2","Spirit","Liquid","Falcons","MOUZ","T1","Gen.G","JDG","Fnatic"],
+  "Cricket": ["Mumbai","Chennai","Bangalore","Kolkata","India","Australia","England","Pakistan","Sydney","Perth"],
+  "Darts": ["Price","van Gerwen","Smith","Humphries","Wright","Cross","Aspinall","Clayton","Littler","Bunting"],
+  "Snooker": ["O'Sullivan","Trump","Robertson","Selby","Williams","Higgins","Allen","Brecel","Wilson","Murphy"],
+  "Table Tennis": ["Fan Zhendong","Ma Long","Harimoto","Moregard","Ovtcharov","Lin Gaoyuan","Calderano","Lebrun"],
+  "Badminton": ["Axelsen","Momota","Ginting","Antonsen","An Se-young","Marin","Yamaguchi","Tai Tzu-ying"],
+  "Futsal": ["Barcelona","Inter Movistar","Sporting","Benfica","Kairat","Tyumen","Anderlecht","Palma"],
+  "Water Polo": ["Pro Recco","Ferencvaros","Olympiacos","Brescia","Jug","Novi Beograd","Marseille","Spain"],
+  "Formula 1": ["Verstappen","Norris","Leclerc","Hamilton","Russell","Piastri","Sainz","Perez","Alonso","Gasly"],
+  "Cycling": ["Pogacar","Vingegaard","Roglic","Evenepoel","van der Poel","van Aert","Pidcock","Ayuso"],
+  "Golf": ["Scheffler","McIlroy","Rahm","Schauffele","Morikawa","Hovland","Thomas","Spieth","Aberg","Cantlay"],
+  "Beach Volleyball": ["Mol/Sorum","Cherif/Ahmed","Plavins/Tocs","Nicolai/Cottafava","George/Andre","Perusic/Schweiner"]
+};
+
+/* event date window */
+var BASE_DATE = "2026-06-29";
+function isoPlus(baseStr, days){ var d=new Date(baseStr+"T00:00:00"); d.setDate(d.getDate()+days); return d.toISOString().slice(0,10); }
+function fmtWhen(iso){ var d=new Date(iso+"T00:00:00"); return d.toLocaleDateString("en-GB",{weekday:"short",day:"2-digit",month:"short"}); }
+
+/* default channel config helper */
+function chanDefaults(level){
+  // most things enabled by default; sprinkle some disabled / partial states
+  return {
+    live: { enabled: true, override:false },
+    prematch: { enabled: true, override:false }
+  };
+}
+
+/* Build the coverage tree with rich per-node coverage attributes */
+var NODES = {};      // id -> node
+var ROOT_IDS = [];
+var SEQ = 0;
+
+function makeNode(type, name, parentId, sport){
+  var id = "n"+(SEQ++);
+  var node = {
+    id:id, type:type, name:name, parentId:parentId, sport:sport,
+    childIds:[],
+    order: 0,
+    live:    { enabled:true },
+    prematch:{ enabled:true },
+    // market overrides: marketKey -> {live:'on'|'off'|undefined, prematch:'on'|'off'|undefined}
+    marketRules:{},
+    // feed providers per partner: partnerId -> [providerName...] ordered by priority
+    providers:{},
+    template:null,     // applied template id (tournament/event); for sport: defined templates handled separately
+    ageGroup:null      // tournaments
+  };
+  NODES[id]=node;
+  if(parentId) NODES[parentId].childIds.push(id); else ROOT_IDS.push(id);
+  return node;
+}
+
+(function build(){
+  Object.keys(SPORT_TREE).forEach(function(sport, si){
+    var sNode = makeNode("sport", sport, null, sport);
+    sNode.order = si;
+    // some sports disabled on one channel for variety
+    if(sport==="Water Polo") sNode.live.enabled=false;
+    if(sport==="Beach Volleyball") sNode.prematch.enabled=false;
+    if(sport==="Futsal") { sNode.live.enabled=false; }
+    // sport-level market disables (apply down): disable a couple obscure markets on live
+    var smk = marketsFor(sport);
+    if(smk.length>6){
+      sNode.marketRules[smk[smk.length-1].key] = { live:'off' };       // last market off live everywhere
+      if(chance(.5)) sNode.marketRules[smk[smk.length-2].key] = { live:'off', prematch:'off' };
+    }
+    // default provider priority for a few partners
+    PARTNERS.forEach(function(p){
+      if(chance(.7)){
+        var provs = PROVIDERS.slice().sort(function(){return rng()-.5;}).slice(0, ri(2,4));
+        sNode.providers[p.id]=provs;
+      }
+    });
+
+    var cats = SPORT_TREE[sport];
+    Object.keys(cats).forEach(function(cat, ci){
+      var cNode = makeNode("category", cat, sNode.id, sport);
+      cNode.order = ci;
+      if(chance(.08)) cNode.live.enabled=false;
+      cats[cat].forEach(function(trn, ti){
+        var tNode = makeNode("tournament", trn, cNode.id, sport);
+        tNode.order = ti;
+        tNode.ageGroup = chance(.78) ? "Senior" : pick(AGE_GROUPS);
+        if(chance(.10)) tNode.prematch.enabled=false;
+        if(chance(.06)) tNode.live.enabled=false;
+        // some tournaments get an applied template
+        if(chance(.35)) tNode.template = "tmpl_"+sport.replace(/\W/g,"")+"_"+(chance(.5)?"core":"full");
+        // tournament-level market disable + an exclusion example
+        if(chance(.25)){
+          var tm = marketsFor(sport);
+          tNode.marketRules[tm[ri(1,Math.min(5,tm.length-1))].key] = { live:'off' };
+        }
+        // partner provider override on some tournaments
+        PARTNERS.forEach(function(p){ if(chance(.18)){ tNode.providers[p.id]=PROVIDERS.slice().sort(function(){return rng()-.5;}).slice(0,ri(2,3)); } });
+
+        var teams = TEAMS[sport]||TEAMS["Football"];
+        var nEvents = ri(4,9);
+        for(var e=0;e<nEvents;e++){
+          var a=pick(teams), b=pick(teams); var guard=0; while(b===a && guard++<10) b=pick(teams);
+          var indiv = ["Tennis","MMA","Boxing","Darts","Snooker","Table Tennis","Badminton","Golf","Formula 1","Cycling"].indexOf(sport)!==-1;
+          var evName = (sport==="Formula 1"||sport==="Golf"||sport==="Cycling") ? (trn) : (a + (indiv?" v ":" vs ") + b);
+          if(sport==="Formula 1") evName = pick(["Monaco","Silverstone","Monza","Spa","Suzuka","Austin","Bahrain","Singapore"]) + " GP";
+          if(sport==="Golf") evName = trn + " — R"+ri(1,4);
+          if(sport==="Cycling") evName = trn + " — Stage "+ri(1,21);
+          var eNode = makeNode("event", evName, tNode.id, sport);
+          eNode.order = e;
+          eNode.date = isoPlus(BASE_DATE, ri(0,21));
+          eNode.isLiveNow = chance(.16);
+          if(chance(.07)) eNode.live.enabled=false;
+          if(chance(.05)) eNode.prematch.enabled=false;
+          // event-level market disable / exclusion-to-parent
+          if(chance(.18)){
+            var em = marketsFor(sport);
+            eNode.marketRules[em[ri(0,em.length-1)].key] = { live:'off' };
+          }
+          // EXCLUSION example: re-enable a market the sport turned off
+          if(smk.length>6 && chance(.15)){
+            eNode.marketRules[smk[smk.length-1].key] = { live:'on' };  // override sport-off
+          }
+          // markets as leaf nodes
+          marketsFor(sport).forEach(function(m, mi){
+            var mNode = makeNode("market", m.label, eNode.id, sport);
+            mNode.marketKey = m.key;
+            mNode.order = mi;
+          });
+        }
+      });
+    });
+  });
+})();
+
+/* market templates per sport (mock). id pattern tmpl_<sport>_<core|full> */
+var TEMPLATES = {};
+(function buildTemplates(){
+  Object.keys(MARKET_CATALOG).forEach(function(sport){
+    var all = marketsFor(sport);
+    var key = sport.replace(/\W/g,"");
+    TEMPLATES["tmpl_"+key+"_core"] = { id:"tmpl_"+key+"_core", sport:sport, name:sport+" — Core", desc:"Most liquid markets only", markets: all.slice(0, Math.min(6,all.length)).map(function(m){return m.key;}) };
+    TEMPLATES["tmpl_"+key+"_full"] = { id:"tmpl_"+key+"_full", sport:sport, name:sport+" — Full", desc:"Full market depth", markets: all.map(function(m){return m.key;}) };
+    if(all.length>8){
+      TEMPLATES["tmpl_"+key+"_lite"] = { id:"tmpl_"+key+"_lite", sport:sport, name:sport+" — Lite (mobile)", desc:"Trimmed set for mobile clients", markets: all.slice(0, Math.min(4,all.length)).map(function(m){return m.key;}) };
+    }
+  });
+})();
+function templatesForSport(sport){ return Object.keys(TEMPLATES).map(function(k){return TEMPLATES[k];}).filter(function(t){return t.sport===sport;}); }
+
+/* ----------------------------- Picked tournaments / events (mock) ----------------------------- */
+function allOfType(type){ return Object.keys(NODES).map(function(k){return NODES[k];}).filter(function(n){return n.type===type;}); }
+var allTournaments = allOfType("tournament");
+var allEvents = allOfType("event");
+var PICKED_TOURNAMENTS = [];  // node ids
+var PICKED_EVENTS = [];       // node ids
+(function seedPicks(){
+  var t = allTournaments.slice().sort(function(){return rng()-.5;}).slice(0,6);
+  t.forEach(function(n){ PICKED_TOURNAMENTS.push(n.id); });
+  var ev = allEvents.slice().sort(function(){return rng()-.5;}).slice(0,14);
+  ev.forEach(function(n){ PICKED_EVENTS.push(n.id); });
+})();
+
+/* ----------------------------- Helpers: hierarchy ----------------------------- */
+function ancestors(node){ var out=[], p=node.parentId; while(p){ out.unshift(NODES[p]); p=NODES[p].parentId; } return out; }
+function pathLabel(node){ return ancestors(node).map(function(n){return n.name;}).concat(node.name).join(" › "); }
+function sportOf(node){ return node.sport; }
+function siblings(node){ return (node.parentId? NODES[node.parentId].childIds : ROOT_IDS).map(function(id){return NODES[id];}); }
+function sortedChildren(node){
+  var ids = node ? node.childIds : ROOT_IDS;
+  return ids.map(function(id){return NODES[id];}).sort(function(a,b){ return a.order-b.order || a.name.localeCompare(b.name); });
+}
+
+/* effective channel state: a node is effectively ON only if it and all ancestors are ON for that channel */
+function effChannel(node, ch){
+  if(!node[ch].enabled) return false;
+  var p=node.parentId;
+  while(p){ if(!NODES[p][ch].enabled) return false; p=NODES[p].parentId; }
+  return true;
+}
+function ownChannel(node, ch){ return node[ch].enabled; }
+
+/* effective market rule for a (node, marketKey, channel): walks up, deepest override wins.
+   returns {state:'on'|'off', source:nodeId, excluded:bool} */
+function effMarket(node, marketKey, ch){
+  var chain = ancestors(node).concat(node); // root..node
+  var result = {state:'on', source:null, excluded:false, parentOff:false};
+  chain.forEach(function(n){
+    var r = n.marketRules[marketKey];
+    if(r && r[ch]){
+      if(result.state==='off' && r[ch]==='on') result.excluded=true;  // re-enabled below an off
+      result.state = r[ch];
+      result.source = n.id;
+    }
+  });
+  return result;
+}
+
+/* node coverage dot for sidebar: both on / partial / off across channels (own only) */
+function nodeDot(node){
+  var l=ownChannel(node,'live'), p=ownChannel(node,'prematch');
+  if(l&&p) return "both"; if(!l&&!p) return "off"; return "partial";
+}
+
+/* count helpers for KPIs */
+function countDisabledNodes(){
+  var liveOff=0, preOff=0, mkOff=0;
+  Object.keys(NODES).forEach(function(k){
+    var n=NODES[k];
+    if(n.type!=="market"){
+      if(!n.live.enabled) liveOff++;
+      if(!n.prematch.enabled) preOff++;
+    }
+    Object.keys(n.marketRules).forEach(function(mkk){
+      var r=n.marketRules[mkk];
+      if(r.live==='off'||r.prematch==='off') mkOff++;
+    });
+  });
+  return {liveOff:liveOff, preOff:preOff, mkOff:mkOff};
+}
+
+/* ----------------------------- State ----------------------------- */
+var state = {
+  view: "coverage",          // coverage | picked-events
+  partner: PARTNERS[0].id,
+  mode: "both",              // both | live | prematch
+  ageFilter: "",             // "" or age group
+  search: "",
+  expanded: new Set(),
+  selected: new Set(),       // node ids selected via checkbox for bulk
+  modal: null,               // {type, nodeId, ...}
+  modalTab: 0,
+  toast: null
+};
+// expand the first sport by default
+state.expanded.add(ROOT_IDS[0]);
+
+/* ----------------------------- SVG ----------------------------- */
+var CHEVRON = '<svg viewBox="0 0 16 16" fill="none"><path d="M6 4l4 4-4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+var ICONS = { sport:"●", category:"▣", tournament:"🏆", event:"⚔", market:"⊞" };
+function esc(s){ return String(s).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c];}); }
+function partnerName(id){ var p=PARTNERS.filter(function(x){return x.id===id;})[0]; return p?p.name:id; }
+
+/* ============================================================
+   RENDER
+   ============================================================ */
+function render(){
+  var ae=document.activeElement; var focusId=ae&&ae.id?ae.id:null;
+  var caret=(ae&&typeof ae.selectionStart==="number")?ae.selectionStart:null;
+
+  var html = '<div class="app">'
+    + topbarHtml()
+    + kpisHtml()
+    + (state.view==="picked-events" ? '' : '')
+    + '<div class="cov-shell">'
+      + sidebarHtml()
+      + '<div>'
+        + (state.view==="coverage" ? coverageMainHtml() : pickedEventsMainHtml())
+      + '</div>'
+    + '</div>'
+    + '<div class="footer-note">Mock data · single-file prototype. Coverage, ordering, providers, templates, exclusions &amp; age-groups are illustrative — wire <code>NODES</code> to your coverage API to go live.</div>'
+    + '</div>';
+
+  document.getElementById("root").innerHTML = html;
+  document.getElementById("modal-root").innerHTML = state.modal ? modalHtml() : "";
+
+  if(focusId){ var el=document.getElementById(focusId); if(el){ el.focus(); if(caret!=null&&el.setSelectionRange){ try{el.setSelectionRange(caret,caret);}catch(e){} } } }
+}
+
+function topbarHtml(){
+  var partnerOpts = PARTNERS.map(function(p){ return '<option value="'+p.id+'"'+(p.id===state.partner?' selected':'')+'>'+esc(p.name)+'</option>'; }).join("");
+  return '<div class="topbar">'
+    + '<div><h1>Coverage Management</h1>'
+      + '<div class="sub">Enable/disable, order, feed providers, market templates, exclusions &amp; age-groups — live &amp; prematch in one place</div></div>'
+    + '<div class="topbar-right">'
+      + '<div class="ctx-field"><label>Partner</label><select class="input" id="partner-sel">'+partnerOpts+'</select></div>'
+      + '<div class="ctx-field"><label>Channel view</label><div class="seg">'
+        + '<button data-mode="both" class="'+(state.mode==="both"?"on":"")+'">Both</button>'
+        + '<button data-mode="live" class="'+(state.mode==="live"?"on":"")+'">Live</button>'
+        + '<button data-mode="prematch" class="'+(state.mode==="prematch"?"on":"")+'">Prematch</button>'
+      + '</div></div>'
+      + '<div class="ctx-field"><label>&nbsp;</label><button class="btn" id="open-disabled-summary">🔍 What\'s disabled…</button></div>'
+    + '</div>'
+  + '</div>';
+}
+
+function kpisHtml(){
+  var d=countDisabledNodes();
+  var nSports=ROOT_IDS.length, nTrn=allTournaments.length, nEv=allEvents.length;
+  function card(label,val,cls){ return '<div class="kpi"><div class="label">'+label+'</div><div class="value'+(cls?' '+cls:'')+'">'+val+'</div></div>'; }
+  return '<div class="kpis">'
+    + card("Sports", nSports)
+    + card("Tournaments", nTrn.toLocaleString())
+    + card("Events", nEv.toLocaleString())
+    + card("Disabled — Live", d.liveOff, "live")
+    + card("Market rules", d.mkOff, "neg")
+  + '</div>';
+}
+
+/* ---------- sidebar (iframe left tree) ---------- */
+function sidebarHtml(){
+  // picked tournaments (pinned top)
+  var pinned = PICKED_TOURNAMENTS.map(function(id){
+    var n=NODES[id]; if(!n) return "";
+    return '<div class="pin-item" data-jump="'+id+'"><span class="ic">🏆</span>'
+      + '<span class="name" title="'+esc(pathLabel(n))+'">'+esc(n.name)+'</span>'
+      + '<span class="x" data-unpin-trn="'+id+'" title="Remove from picks">✕</span></div>';
+  }).join("") || '<div class="sub-muted" style="padding:6px 14px">No picked tournaments yet.</div>';
+
+  // sports tree
+  var tree = sortedChildren(null).map(function(sp){ return sNodeHtml(sp); }).join("");
+
+  return '<div class="panel sidebar">'
+    + '<div class="side-block">'
+      + '<div class="side-title">📌 Picked Tournaments <button class="side-add" id="add-picked-trn" title="Add tournament">+</button></div>'
+      + pinned
+    + '</div>'
+    + '<div class="side-block">'
+      + '<div class="nav-item '+(state.view==="picked-events"?"active":"")+'" data-view="picked-events">'
+        + '<span class="ic">⭐</span><span class="name">Picked Events</span><span class="badge">'+PICKED_EVENTS.length+'</span></div>'
+      + '<div class="nav-item '+(state.view==="coverage"?"active":"")+'" data-view="coverage">'
+        + '<span class="ic">🗂</span><span class="name">Coverage Tree</span></div>'
+    + '</div>'
+    + '<div class="side-block">'
+      + '<div class="side-title">Sports <span class="count">'+ROOT_IDS.length+'</span></div>'
+      + '<div class="stree">'+tree+'</div>'
+    + '</div>'
+  + '</div>';
+}
+function sNodeHtml(node){
+  var hasKids = node.childIds.length>0 && node.type!=="event"; // show down to event in sidebar
+  var open = state.expanded.has(node.id);
+  var sel = state.modal && state.modal.nodeId===node.id;
+  var indent = ancestors(node).length;
+  var dot = nodeDot(node);
+  var html = '<div class="snode">'
+    + '<div class="srow'+(sel?' sel':'')+'" data-side="'+node.id+'" style="padding-left:'+(8+indent*13)+'px">'
+      + '<span class="tw '+(hasKids?(open?'open':''):'leaf')+'" data-side-tw="'+node.id+'">'+CHEVRON+'</span>'
+      + '<span class="ic">'+(ICONS[node.type]||"•")+'</span>'
+      + '<span class="nm" title="'+esc(node.name)+'">'+esc(node.name)+'</span>'
+      + '<span class="dot '+dot+'" title="own state"></span>'
+    + '</div>';
+  if(hasKids && open){
+    html += sortedChildren(node).map(function(c){ return c.type==="event"? "" : sNodeHtml(c); }).join("");
+    // show event count leaf line under tournaments
+    if(node.type==="tournament"){
+      html += '<div class="srow" data-side="'+node.id+'" style="padding-left:'+(8+(indent+1)*13)+'px"><span class="tw leaf"></span><span class="ic">⚔</span><span class="nm sub-muted">'+node.childIds.length+' events</span></div>';
+    }
+  }
+  return html + '</div>';
+}
+
+/* ---------- main coverage table ---------- */
+function visibleRows(){
+  // produce flat list honoring expansion, search, age filter
+  var rows=[];
+  var q=state.search.trim().toLowerCase();
+  function matchSearch(node){
+    if(!q) return true;
+    if(node.name.toLowerCase().indexOf(q)!==-1) return true;
+    // match if any descendant matches
+    return node.childIds.some(function(id){ return matchSearch(NODES[id]); });
+  }
+  function ageOk(node){
+    if(!state.ageFilter) return true;
+    // applies to tournament + its subtree; sports/categories pass through
+    if(node.type==="tournament") return node.ageGroup===state.ageFilter;
+    if(node.type==="event"||node.type==="market"){ // inherit tournament age
+      var t=node; while(t && t.type!=="tournament") t=NODES[t.parentId];
+      return t? t.ageGroup===state.ageFilter : true;
+    }
+    return true; // sport/category: shown if any descendant tournament matches (handled by recursion)
+  }
+  function walk(node, depth){
+    if(!matchSearch(node)) return false;
+    // age filter: for sport/category only include if some descendant tournament matches
+    if(state.ageFilter && (node.type==="sport"||node.type==="category")){
+      var any = hasAgeDescendant(node);
+      if(!any) return false;
+    }
+    if(state.ageFilter && node.type==="tournament" && node.ageGroup!==state.ageFilter) return false;
+
+    rows.push({node:node, depth:depth});
+    var open = state.expanded.has(node.id) || (q && node.type!=="event"); // auto-open on search down to events
+    if(open && node.childIds.length){
+      sortedChildren(node).forEach(function(c){ walk(c, depth+1); });
+    }
+    return true;
+  }
+  sortedChildren(null).forEach(function(sp){ walk(sp,0); });
+  return rows;
+}
+function hasAgeDescendant(node){
+  if(node.type==="tournament") return node.ageGroup===state.ageFilter;
+  return node.childIds.some(function(id){ return hasAgeDescendant(NODES[id]); });
+}
+
+function coverageMainHtml(){
+  var rows = visibleRows();
+  var ageOpts = '<option value="">All age groups</option>' + AGE_GROUPS.map(function(a){ return '<option value="'+a+'"'+(state.ageFilter===a?' selected':'')+'>'+a+'</option>'; }).join("");
+
+  var selCount = state.selected.size;
+  var selbar = selCount>0 ? (
+    '<div class="selbar">'
+      + '<span class="lead">'+selCount+' selected</span>'
+      + '<button class="btn sm" data-bulk="enable-live">Enable Live</button>'
+      + '<button class="btn sm" data-bulk="disable-live">Disable Live</button>'
+      + '<button class="btn sm" data-bulk="enable-pre">Enable Prematch</button>'
+      + '<button class="btn sm" data-bulk="disable-pre">Disable Prematch</button>'
+      + '<span class="spacer"></span>'
+      + '<button class="btn sm" id="bulk-clear">Clear selection</button>'
+    + '</div>'
+  ) : '';
+
+  // columns depend on mode
+  var showLive = state.mode!=="prematch";
+  var showPre  = state.mode!=="live";
+  var head = '<tr>'
+    + '<th class="lbl" style="width:34%">Coverage node</th>'
+    + (showLive? '<th>Live</th>':'')
+    + (showPre? '<th>Prematch</th>':'')
+    + '<th>Order</th>'
+    + '<th>Feed providers</th>'
+    + '<th>Markets / Template</th>'
+    + '<th>Age</th>'
+    + '<th style="width:54px"></th>'
+  + '</tr>';
+
+  var colspan = 4 + (showLive?1:0) + (showPre?1:0);
+  var body = rows.length===0
+    ? '<tr><td colspan="'+colspan+'"><div class="empty-state">No nodes match the current search / age filter.</div></td></tr>'
+    : rows.map(function(r){ return covRowHtml(r.node, r.depth, showLive, showPre); }).join("");
+
+  return selbar
+    + '<div class="panel">'
+      + '<div class="panel-head">'
+        + '<h2>Coverage Tree</h2><span class="hint">partner: '+esc(partnerName(state.partner))+'</span>'
+        + '<span class="spacer"></span>'
+        + '<div class="toolbar">'
+          + '<select class="input" id="age-filter" style="min-width:150px">'+ageOpts+'</select>'
+          + '<input id="cov-search" class="search-box" placeholder="Search nodes…" value="'+esc(state.search)+'">'
+          + '<button class="btn" id="expand-all">Expand</button>'
+          + '<button class="btn" id="collapse-all">Collapse</button>'
+        + '</div>'
+      + '</div>'
+      + '<div class="table-wrap"><table class="cov"><thead>'+head+'</thead><tbody>'+body+'</tbody></table></div>'
+      + '<div class="legend">'
+        + '<span><span class="dot" style="background:var(--pos)"></span>both channels on</span>'
+        + '<span><span class="dot" style="background:var(--warn)"></span>partial</span>'
+        + '<span><span class="dot" style="background:var(--neg)"></span>off</span>'
+        + '<span>Toggling a parent cascades to children. A dimmed toggle means a parent disabled this channel upstream.</span>'
+        + '<span>Markets count shows <b style="color:var(--neg)">disabled / total</b> at that node; click to edit rules &amp; exclusions.</span>'
+      + '</div>'
+    + '</div>';
+}
+
+function covRowHtml(node, depth, showLive, showPre){
+  var hasKids = node.childIds.length>0;
+  var open = state.expanded.has(node.id);
+  var tag = {sport:"SPT",category:"CAT",tournament:"TRN",event:"EVT",market:"MKT"}[node.type];
+
+  // channel toggles
+  function chanCell(ch){
+    if(node.type==="market"){
+      // markets handled at parent level; show effective on/off summary instead
+      return '<td><div class="cell sub-muted">—</div></td>';
+    }
+    var own = node[ch].enabled;
+    var eff = effChannel(node, ch);
+    var inheritedOff = own && !eff; // own on but ancestor off
+    var cls = "sw "+(own?"on":"")+(inheritedOff?" inherited-off":"");
+    var note = "";
+    if(inheritedOff) note = '<span class="inh-note">parent off</span>';
+    return '<td><div class="ch-cell">'
+      + '<span class="'+cls+'" data-ch="'+ch+'" data-toggle="'+node.id+'" title="'+(own?'Disable':'Enable')+' '+ch+'"><span class="track"></span></span>'
+      + note
+    + '</div></td>';
+  }
+
+  // order control
+  var sibs = siblings(node).slice().sort(function(a,b){return a.order-b.order;});
+  var idx = sibs.indexOf(node);
+  var orderCell = node.type==="market"
+    ? '<td><div class="cell"><span class="sub-muted">'+(idx+1)+'</span></div></td>'
+    : '<td><div class="cell"><div class="ord">'
+        + '<button data-move="up" data-node="'+node.id+'" '+(idx<=0?'disabled':'')+'>▲</button>'
+        + '<span class="num">'+(idx+1)+'</span>'
+        + '<button data-move="down" data-node="'+node.id+'" '+(idx>=sibs.length-1?'disabled':'')+'>▼</button>'
+      + '</div></div></td>';
+
+  // providers (per partner)
+  var provCell;
+  if(node.type==="market"){ provCell='<td><div class="cell sub-muted">—</div></td>'; }
+  else {
+    var provs = node.providers[state.partner];
+    if(provs && provs.length){
+      provCell = '<td><div class="cell"><span class="pbadge" data-providers="'+node.id+'"><span class="prio">1</span>'+esc(provs[0])+(provs.length>1?(' +'+(provs.length-1)):'')+'</span></div></td>';
+    } else {
+      // inherited?
+      var inh=null, p=node.parentId;
+      while(p){ if(NODES[p].providers[state.partner]){ inh=NODES[p].providers[state.partner]; break;} p=NODES[p].parentId; }
+      provCell = '<td><div class="cell"><span class="pbadge" data-providers="'+node.id+'" style="color:var(--muted)">'
+        + (inh? '↑ '+esc(inh[0])+(inh.length>1?(' +'+(inh.length-1)):'') : '+ set')
+        + '</span></div></td>';
+    }
+  }
+
+  // markets / template cell
+  var mktCell;
+  if(node.type==="market"){
+    // show effective live/prematch state for the leaf market
+    var parentEv = NODES[node.parentId];
+    var lv = effMarket(parentEv, node.marketKey, 'live');
+    var pr = effMarket(parentEv, node.marketKey, 'prematch');
+    var parts=[];
+    if(showLive) parts.push('<span class="eff-badge '+(lv.excluded?'eff-exc':(lv.state==='on'?'eff-on':'eff-off'))+'">L '+(lv.excluded?'EXC':lv.state.toUpperCase())+'</span>');
+    if(showPre) parts.push('<span class="eff-badge '+(pr.excluded?'eff-exc':(pr.state==='on'?'eff-on':'eff-off'))+'">P '+(pr.excluded?'EXC':pr.state.toUpperCase())+'</span>');
+    mktCell = '<td><div class="cell"><div class="pillrow" style="justify-content:center">'+parts.join("")+'</div></div></td>';
+  } else if(node.type==="event"||node.type==="tournament"){
+    var tmplId = node.template;
+    var tmpl = tmplId? TEMPLATES[tmplId] : null;
+    var tmplBadge = '<span class="tmpl-badge '+(tmpl?'set':'none')+'" data-template="'+node.id+'">'+(tmpl? '◳ '+esc(tmpl.name.replace(sportOf(node)+" — ","")) : '◳ template')+'</span>';
+    // count disabled markets at this node
+    var nDis = Object.keys(node.marketRules).filter(function(k){var r=node.marketRules[k]; return r.live==='off'||r.prematch==='off';}).length;
+    var nExc = Object.keys(node.marketRules).filter(function(k){return node.marketRules[k].live==='on'||node.marketRules[k].prematch==='on';}).length;
+    var total = marketsFor(sportOf(node)).length;
+    var mk = '<span class="mkt-link" data-markets="'+node.id+'">'+(nDis>0?'<span class="warnnum">'+nDis+'</span>':'0')+' / '+total+' off'+(nExc>0?' · '+nExc+' exc':'')+'</span>';
+    mktCell = '<td><div class="cell"><div class="pillrow" style="justify-content:center">'+tmplBadge+mk+'</div></div></td>';
+  } else {
+    // sport/category: market rules + (sport: templates link)
+    var nDis2 = Object.keys(node.marketRules).filter(function(k){var r=node.marketRules[k]; return r.live==='off'||r.prematch==='off';}).length;
+    var total2 = marketsFor(sportOf(node)).length;
+    var mk2 = '<span class="mkt-link" data-markets="'+node.id+'">'+(nDis2>0?'<span class="warnnum">'+nDis2+'</span>':'0')+' / '+total2+' off</span>';
+    var tlink = node.type==="sport" ? ' <span class="tmpl-badge none" data-templates="'+node.id+'">◳ templates ('+templatesForSport(node.name).length+')</span>' : '';
+    mktCell = '<td><div class="cell"><div class="pillrow" style="justify-content:center">'+mk2+tlink+'</div></div></td>';
+  }
+
+  // age cell (tournaments editable, events inherit)
+  var ageCell;
+  if(node.type==="tournament"){
+    ageCell = '<td><div class="cell"><span class="age-badge" data-age="'+node.id+'">'+esc(node.ageGroup||"—")+'</span></div></td>';
+  } else if(node.type==="event"){
+    var t=NODES[node.parentId]; ageCell='<td><div class="cell sub-muted">'+esc(t.ageGroup||"—")+'</div></td>';
+  } else ageCell='<td><div class="cell sub-muted">—</div></td>';
+
+  // name cell
+  var dimmed = (!effChannel(node,'live') && !effChannel(node,'prematch'));
+  var selectable = node.type!=="market";
+  var checked = state.selected.has(node.id);
+  var liveBadge = (node.type==="event" && node.isLiveNow) ? ' <span class="live-pill">live now</span>' : '';
+  var nameCell = '<td class="lbl"><div class="cell" style="padding-left:'+(10+depth*18)+'px">'
+    + '<span class="twisty '+(hasKids?(open?'open':''):'leaf')+'" '+(hasKids?('data-tw="'+node.id+'"'):'')+'>'+CHEVRON+'</span>'
+    + (selectable? '<input type="checkbox" class="cb-sel" data-sel="'+node.id+'"'+(checked?' checked':'')+'>' : '<span style="width:14px"></span>')
+    + '<span class="dim-tag '+tag+'">'+tag+'</span>'
+    + '<span class="name'+(dimmed?' dis':'')+'" title="'+esc(node.name)+'">'+esc(node.name)+'</span>'
+    + (hasKids?'<span class="sub-muted">· '+node.childIds.length+'</span>':'')
+    + liveBadge
+  + '</div></td>';
+
+  return '<tr>'
+    + nameCell
+    + (showLive? chanCell('live'):'')
+    + (showPre? chanCell('prematch'):'')
+    + orderCell
+    + provCell
+    + mktCell
+    + ageCell
+    + '<td><div class="cell"><button class="icon-btn" data-providers="'+node.id+'" title="Feed providers">⚙</button></div></td>'
+  + '</tr>';
+}
+
+/* ---------- picked events view ---------- */
+function pickedEventsMainHtml(){
+  var items = PICKED_EVENTS.map(function(id){ return NODES[id]; }).filter(Boolean);
+  // sort by date
+  items.sort(function(a,b){ return (a.date||"").localeCompare(b.date||""); });
+  var cards = items.length===0
+    ? '<div class="empty-state">No picked events. Use “Add events” to build the list.</div>'
+    : items.map(function(n){
+        return '<div class="pe-card">'
+          + '<input type="checkbox" class="cb-sel" disabled>'
+          + '<div style="flex:1">'
+            + '<div class="pe-name">'+esc(n.name)+(n.isLiveNow?' <span class="live-pill">live now</span>':'')+'</div>'
+            + '<div class="pe-path">'+esc(pathLabel(NODES[n.parentId]))+'</div>'
+          + '</div>'
+          + '<div class="pe-when">'+fmtWhen(n.date||BASE_DATE)+'</div>'
+          + '<button class="btn sm" data-jump-event="'+n.id+'">Open in tree</button>'
+          + '<button class="btn sm danger" data-unpin-event="'+n.id+'">Remove</button>'
+        + '</div>';
+      }).join("");
+
+  return '<div class="panel">'
+    + '<div class="panel-head"><h2>Picked Events</h2><span class="hint">a curated, fast-access list surfaced as a left-menu item in the iframe</span>'
+      + '<span class="spacer"></span>'
+      + '<button class="btn primary" id="add-picked-event">+ Add events</button>'
+    + '</div>'
+    + '<div class="panel-body">'
+      + '<div class="info-banner blue">ℹ️ Picked events appear as a dedicated menu item in the player iframe’s left tree. Players reach them in one click without navigating the sports hierarchy.</div>'
+      + cards
+    + '</div>'
+  + '</div>';
+}
+
+/* ============================================================
+   MODALS
+   ============================================================ */
+function modalHtml(){
+  var m=state.modal;
+  switch(m.type){
+    case "providers": return providerModal(NODES[m.nodeId]);
+    case "markets": return marketsModal(NODES[m.nodeId]);
+    case "template": return applyTemplateModal(NODES[m.nodeId]);
+    case "templates": return templatesModal(NODES[m.nodeId]);
+    case "age": return ageModal(NODES[m.nodeId]);
+    case "disabled-summary": return disabledSummaryModal();
+    case "add-picked-trn": return pickerModal("tournament","Add Picked Tournaments", PICKED_TOURNAMENTS, "trn");
+    case "add-picked-event": return pickerModal("event","Add Picked Events", PICKED_EVENTS, "event");
+    default: return "";
+  }
+}
+function shell(title, sub, body, foot, wide){
+  return '<div class="overlay" id="overlay">'
+    + '<div class="modal'+(wide?' wide':'')+'" id="modal">'
+      + '<div class="modal-head"><div><h3>'+title+'</h3>'+(sub?'<div class="mh-sub">'+sub+'</div>':'')+'</div><button class="x" id="modal-close">×</button></div>'
+      + '<div class="modal-body">'+body+'</div>'
+      + (foot!==null ? '<div class="modal-foot">'+(foot||'<button class="btn" id="modal-close2">Close</button>')+'</div>' : '')
+    + '</div>'
+  + '</div>';
+}
+
+/* --- feed providers --- */
+function providerModal(node){
+  var partner = state.partner;
+  var list = (node.providers[partner]||[]).slice();
+  // inherited
+  var inh=null, p=node.parentId; while(p){ if(NODES[p].providers[partner]){ inh={node:NODES[p], list:NODES[p].providers[partner]}; break;} p=NODES[p].parentId; }
+  var rows = list.length? list.map(function(name,i){
+    return '<div class="prov-row">'
+      + '<span class="grab">⋮⋮</span><span class="pnum">'+(i+1)+'</span>'
+      + '<span class="pname">'+esc(name)+'</span>'
+      + '<span class="pmeta">priority '+(i+1)+'</span>'
+      + '<button class="icon-btn" data-prov-up="'+i+'" '+(i===0?'disabled':'')+'>▲</button>'
+      + '<button class="icon-btn" data-prov-down="'+i+'" '+(i===list.length-1?'disabled':'')+'>▼</button>'
+      + '<button class="icon-btn" data-prov-del="'+i+'" title="Remove">✕</button>'
+    + '</div>';
+  }).join("") : '<div class="sub-muted" style="padding:6px 0 12px">No provider priority set at this level'+(inh?'. Inheriting from <b>'+esc(inh.node.name)+'</b>.':'.')+'</div>';
+
+  var avail = PROVIDERS.filter(function(pr){ return list.indexOf(pr)===-1; });
+  var addSel = '<select class="input" id="prov-add-sel" style="min-width:200px"><option value="">Add provider…</option>'
+    + avail.map(function(pr){ return '<option value="'+esc(pr)+'">'+esc(pr)+'</option>'; }).join("") + '</select>';
+
+  var body = '<div class="info-banner blue">ℹ️ Provider priority is set per <b>partner</b> and per <b>level</b>. Lower numbers win; deeper levels override inherited priority. Currently editing <b>'+esc(partnerName(partner))+'</b>.</div>'
+    + (inh? '<div class="sub-muted" style="margin-bottom:10px">Inherited from <b>'+esc(inh.node.name)+'</b>: '+inh.list.map(function(x,i){return (i+1)+'. '+esc(x);}).join(" · ")+'</div>':'')
+    + rows
+    + '<div style="display:flex; gap:8px; margin-top:10px">'+addSel+'<button class="btn" id="prov-add-btn">Add</button></div>';
+
+  return shell('Feed Providers — '+esc(node.name),
+    esc(node.type.toUpperCase())+' · '+esc(pathLabel(node)),
+    body,
+    '<span class="sub-muted spacer">Changes are mock-only in this prototype</span><button class="btn primary" id="modal-close">Done</button>');
+}
+
+/* --- markets / exclusions modal --- */
+function marketsModal(node){
+  var sport = sportOf(node);
+  var markets = marketsFor(sport);
+  var canEditLevel = (node.type==="sport"||node.type==="tournament"||node.type==="event");
+  var rows = markets.map(function(mk){
+    function cell(ch){
+      var eff = effMarket(node, mk.key, ch);
+      var own = node.marketRules[mk.key] && node.marketRules[mk.key][ch];
+      var badge;
+      if(eff.excluded) badge='<span class="eff-badge eff-exc">EXCLUDED ON</span>';
+      else badge='<span class="eff-badge '+(eff.state==='on'?'eff-on':'eff-off')+'">'+eff.state.toUpperCase()+'</span>';
+      var srcName = eff.source? (eff.source===node.id?'this level':NODES[eff.source].name) : 'default on';
+      // controls: off / on(exclude) / inherit
+      var ctrls = '<div class="seg" style="transform:scale(.9); transform-origin:left">'
+        + '<button data-mr="'+mk.key+'" data-mrch="'+ch+'" data-mrval="off" class="'+(own==='off'?'on':'')+'" style="'+(own==='off'?'background:var(--neg);color:#fff':'')+'">Off</button>'
+        + '<button data-mr="'+mk.key+'" data-mrch="'+ch+'" data-mrval="on" class="'+(own==='on'?'on':'')+'" style="'+(own==='on'?'background:var(--live);color:#fff':'')+'">On*</button>'
+        + '<button data-mr="'+mk.key+'" data-mrch="'+ch+'" data-mrval="inherit" class="'+(!own?'on':'')+'" style="'+(!own?'background:var(--muted);color:#fff':'')+'">Inherit</button>'
+      + '</div>';
+      return '<td class="c">'+badge+'<div class="sub-muted" style="margin:3px 0 5px">from: '+esc(srcName)+'</div>'+(canEditLevel?ctrls:'')+'</td>';
+    }
+    return '<tr><td><b>'+esc(mk.label)+'</b></td>'+cell('live')+cell('prematch')+'</tr>';
+  }).join("");
+
+  var body = '<div class="info-banner">⚠️ Set a market <b>Off</b> to disable it at this level and everything below. Set <b>On*</b> on a deeper node (tournament/event) to create an <b>exclusion</b> — re-enabling a market a parent turned off. <b>Inherit</b> clears the local rule.</div>'
+    + '<table class="grid"><thead><tr><th>Market</th><th class="c">Live</th><th class="c">Prematch</th></tr></thead><tbody>'+rows+'</tbody></table>';
+
+  return shell('Market Rules — '+esc(node.name),
+    esc(node.type.toUpperCase())+' · '+esc(pathLabel(node))+' · '+markets.length+' markets',
+    body,
+    '<span class="sub-muted spacer">* On at a child level below an Off parent = exclusion</span><button class="btn primary" id="modal-close">Done</button>',
+    true);
+}
+
+/* --- apply template (tournament/event) --- */
+function applyTemplateModal(node){
+  var sport=sportOf(node);
+  var tmpls=templatesForSport(sport);
+  var liveSel = node.template; // single applied template for simplicity (mock)
+  var cards = tmpls.map(function(t){
+    var applied = node.template===t.id;
+    var pills = t.markets.slice(0,8).map(function(k){ var m=marketsFor(sport).filter(function(x){return x.key===k;})[0]; return '<span class="mkt-pill">'+esc(m?m.label:k)+'</span>'; }).join("")
+      + (t.markets.length>8? '<span class="mkt-pill">+'+(t.markets.length-8)+' more</span>':'');
+    return '<div class="tmpl-card'+(applied?' applied':'')+'">'
+      + '<div class="tc-head"><span class="tc-name">'+esc(t.name)+'</span><span class="spacer"></span>'
+        + (applied? '<span class="eff-badge eff-on">APPLIED</span>' : '<button class="btn sm primary" data-apply-tmpl="'+t.id+'" data-apply-node="'+node.id+'">Apply</button>')
+      + '</div>'
+      + '<div class="tc-meta">'+esc(t.desc)+' · '+t.markets.length+' markets</div>'
+      + '<div style="margin-top:6px">'+pills+'</div>'
+    + '</div>';
+  }).join("");
+
+  var body = '<div class="info-banner blue">ℹ️ Templates are defined per sport and applied at tournament/event level — separately for live &amp; prematch. Margin settings are intentionally managed elsewhere to keep this UI focused on coverage.</div>'
+    + '<div class="tabs"><button class="'+(state.modalTab===0?'on':'')+'" data-mtab="0">Live</button><button class="'+(state.modalTab===1?'on':'')+'" data-mtab="1">Prematch</button></div>'
+    + cards
+    + (node.template? '<button class="btn danger sm" data-clear-tmpl="'+node.id+'" style="margin-top:6px">Remove applied template</button>':'');
+
+  return shell('Apply Market Template — '+esc(node.name),
+    esc(node.type.toUpperCase())+' · '+esc(sport)+' · '+esc(pathLabel(node)),
+    body, null, false) ;
+}
+
+/* --- manage templates (sport) --- */
+function templatesModal(node){
+  var sport=node.name;
+  var tmpls=templatesForSport(sport);
+  var all=marketsFor(sport);
+  var cards = tmpls.map(function(t){
+    var pills = all.map(function(m){
+      var inT = t.markets.indexOf(m.key)!==-1;
+      return '<span class="mkt-pill" style="'+(inT?'background:var(--accent-soft);color:var(--accent);font-weight:700':'opacity:.5')+'">'+(inT?'✓ ':'')+esc(m.label)+'</span>';
+    }).join("");
+    return '<div class="tmpl-card">'
+      + '<div class="tc-head"><span class="tc-name">'+esc(t.name)+'</span>'
+        + '<span class="sub-muted">'+t.markets.length+'/'+all.length+' markets</span>'
+        + '<span class="spacer"></span><button class="btn sm">Edit</button><button class="btn sm">Duplicate</button></div>'
+      + '<div class="tc-meta">'+esc(t.desc)+'</div>'
+      + '<div style="margin-top:8px">'+pills+'</div>'
+    + '</div>';
+  }).join("");
+
+  var body = '<div class="info-banner blue">ℹ️ Market coverage templates for <b>'+esc(sport)+'</b>. Build a template once, then apply it on any tournament or event — for live and prematch independently.</div>'
+    + cards
+    + '<button class="btn primary" style="margin-top:6px">+ New template</button>';
+
+  return shell('Market Templates — '+esc(sport), 'Sport-level template library', body, null, true);
+}
+
+/* --- age group assignment --- */
+function ageModal(node){
+  var body = '<div class="info-banner blue">ℹ️ Age groups classify tournaments (e.g. youth competitions). Assigned here, they become a filter for bulk enable/disable on the main grid.</div>'
+    + '<label class="fld">Age group for “'+esc(node.name)+'”</label>'
+    + '<div class="pillrow">'
+      + AGE_GROUPS.map(function(a){ return '<span class="chip '+(node.ageGroup===a?'on':'')+'" data-set-age="'+a+'" data-age-node="'+node.id+'">'+a+'</span>'; }).join("")
+    + '</div>';
+  return shell('Age Group — '+esc(node.name), esc(pathLabel(node)), body, null, false);
+}
+
+/* --- disabled summary overlay (per partner) --- */
+function disabledSummaryModal(){
+  var partner=state.partner;
+  var nodeOff=[], mktOff=[], excl=[];
+  Object.keys(NODES).forEach(function(k){
+    var n=NODES[k];
+    if(n.type!=="market"){
+      if(!n.live.enabled || !n.prematch.enabled){
+        var ch=[]; if(!n.live.enabled)ch.push("Live"); if(!n.prematch.enabled)ch.push("Prematch");
+        nodeOff.push({n:n, ch:ch});
+      }
+    }
+    Object.keys(n.marketRules).forEach(function(mkk){
+      var r=n.marketRules[mkk];
+      var lbl=(marketsFor(sportOf(n)).filter(function(x){return x.key===mkk;})[0]||{label:mkk}).label;
+      if(r.live==='off'||r.prematch==='off'){ var c=[]; if(r.live==='off')c.push("Live"); if(r.prematch==='off')c.push("Prematch"); mktOff.push({n:n,mk:lbl,ch:c}); }
+      if(r.live==='on'||r.prematch==='on'){ var c2=[]; if(r.live==='on')c2.push("Live"); if(r.prematch==='on')c2.push("Prematch"); excl.push({n:n,mk:lbl,ch:c2}); }
+    });
+  });
+  function grp(title, arr, render){
+    return '<div class="summary-grp"><h4>'+title+' <span class="sub-muted">('+arr.length+')</span></h4>'
+      + (arr.length? arr.slice(0,40).map(render).join("") + (arr.length>40?'<div class="sub-muted" style="padding:6px 10px">+ '+(arr.length-40)+' more…</div>':'') : '<div class="sub-muted" style="padding:6px 10px">None</div>')
+    + '</div>';
+  }
+  var body = '<div class="info-banner">⚠️ This is the effective “what’s switched off” view for <b>'+esc(partnerName(partner))+'</b>. Use it to audit before going live.</div>'
+    + grp("Disabled nodes", nodeOff, function(x){ return '<div class="summary-item"><span class="dim-tag '+({sport:"SPT",category:"CAT",tournament:"TRN",event:"EVT"})[x.n.type]+'">'+x.n.type.slice(0,3).toUpperCase()+'</span><b>'+esc(x.n.name)+'</b><span class="pillrow">'+x.ch.map(function(c){return '<span class="eff-badge eff-off">'+c+'</span>';}).join("")+'</span><span class="spacer"></span><span class="path">'+esc(pathLabel(x.n))+'</span></div>'; })
+    + grp("Disabled markets (by level)", mktOff, function(x){ return '<div class="summary-item"><span class="eff-badge eff-off">OFF</span><b>'+esc(x.mk)+'</b><span class="sub-muted">@ '+esc(x.n.name)+'</span><span class="pillrow">'+x.ch.map(function(c){return '<span class="eff-badge eff-off">'+c+'</span>';}).join("")+'</span><span class="spacer"></span><span class="path">'+esc(pathLabel(x.n))+'</span></div>'; })
+    + grp("Exclusions (market re-enabled below an Off parent)", excl, function(x){ return '<div class="summary-item"><span class="eff-badge eff-exc">EXC</span><b>'+esc(x.mk)+'</b><span class="sub-muted">@ '+esc(x.n.name)+'</span><span class="pillrow">'+x.ch.map(function(c){return '<span class="eff-badge eff-exc">'+c+'</span>';}).join("")+'</span><span class="spacer"></span><span class="path">'+esc(pathLabel(x.n))+'</span></div>'; });
+
+  return shell('What’s Disabled — '+esc(partnerName(partner)), 'Effective coverage audit · live + prematch', body, '<button class="btn">Export CSV</button><button class="btn primary" id="modal-close">Close</button>', true);
+}
+
+/* --- picker modal (add picked tournaments/events) --- */
+function pickerModal(type, title, pickedArr, kind){
+  var q=(state.modal.q||"").toLowerCase();
+  var pool = allOfType(type).filter(function(n){
+    if(pickedArr.indexOf(n.id)!==-1) return false;
+    if(!q) return true;
+    return n.name.toLowerCase().indexOf(q)!==-1 || pathLabel(n).toLowerCase().indexOf(q)!==-1;
+  }).slice(0,80);
+  var rows = pool.map(function(n){
+    return '<div class="checkline"><input type="checkbox" data-pick="'+n.id+'" data-pick-kind="'+kind+'"><div><b>'+esc(n.name)+'</b>'+(n.date?' <span class="sub-muted">· '+fmtWhen(n.date)+'</span>':'')+'<div class="sub-muted">'+esc(pathLabel(NODES[n.parentId]))+'</div></div></div>';
+  }).join("") || '<div class="sub-muted">No matches.</div>';
+  var body = '<input class="search-box" id="picker-search" placeholder="Search '+type+'s…" value="'+esc(state.modal.q||"")+'" style="width:100%; max-width:none; margin-bottom:12px">'
+    + '<div style="max-height:46vh; overflow:auto">'+rows+'</div>';
+  return shell(title, 'Tick items to add — they will surface in the iframe left tree', body,
+    '<span class="sub-muted spacer">Showing first 80 matches</span><button class="btn" id="modal-close">Done</button>', false);
+}
+
+/* ============================================================
+   EVENTS
+   ============================================================ */
+var root=document.getElementById("root");
+var modalRoot=document.getElementById("modal-root");
+
+function reorder(node, dir){
+  var sibs = siblings(node).slice().sort(function(a,b){return a.order-b.order;});
+  var i=sibs.indexOf(node), j=dir==="up"?i-1:i+1;
+  if(j<0||j>=sibs.length) return;
+  var a=sibs[i], b=sibs[j]; var t=a.order; a.order=b.order; b.order=t;
+  // normalize if equal
+  sibs.sort(function(x,y){return x.order-y.order;}).forEach(function(n,k){ n.order=k; });
+}
+
+function setChannelCascade(node, ch, val){
+  node[ch].enabled=val;
+  // cascade to descendants (set own flag so toggling parent back on restores)
+  (function walk(n){ n.childIds.forEach(function(id){ var c=NODES[id]; if(c.type!=="market"){ c[ch].enabled=val; walk(c);} }); })(node);
+}
+
+root.addEventListener("click", function(e){
+  var t=e.target;
+
+  // view switch
+  var nv=t.closest("[data-view]"); if(nv){ state.view=nv.getAttribute("data-view"); render(); return; }
+
+  // sidebar twisty / select
+  var stw=t.closest("[data-side-tw]"); if(stw){ var id=stw.getAttribute("data-side-tw"); if(state.expanded.has(id))state.expanded.delete(id); else state.expanded.add(id); render(); return; }
+  var srow=t.closest("[data-side]"); if(srow){ var sid=srow.getAttribute("data-side"); state.view="coverage"; expandToNode(NODES[sid]); state.modal=null; render(); scrollToNode(sid); return; }
+
+  // jump from picks
+  var jt=t.closest("[data-jump]"); if(jt){ state.view="coverage"; expandToNode(NODES[jt.getAttribute("data-jump")]); render(); scrollToNode(jt.getAttribute("data-jump")); return; }
+  var je=t.closest("[data-jump-event]"); if(je){ state.view="coverage"; expandToNode(NODES[je.getAttribute("data-jump-event")]); render(); scrollToNode(je.getAttribute("data-jump-event")); return; }
+
+  var upt=t.closest("[data-unpin-trn]"); if(upt){ var pid=upt.getAttribute("data-unpin-trn"); PICKED_TOURNAMENTS=PICKED_TOURNAMENTS.filter(function(x){return x!==pid;}); render(); return; }
+  var upe=t.closest("[data-unpin-event]"); if(upe){ var eid=upe.getAttribute("data-unpin-event"); PICKED_EVENTS=PICKED_EVENTS.filter(function(x){return x!==eid;}); render(); return; }
+  if(t.closest("#add-picked-trn")){ state.modal={type:"add-picked-trn",q:""}; render(); return; }
+  if(t.closest("#add-picked-event")){ state.modal={type:"add-picked-event",q:""}; render(); return; }
+
+  // main tree twisty
+  var tw=t.closest("[data-tw]"); if(tw){ var p=tw.getAttribute("data-tw"); if(state.expanded.has(p))state.expanded.delete(p); else state.expanded.add(p); render(); return; }
+
+  // channel toggle
+  var sw=t.closest("[data-toggle]"); if(sw){ var nid=sw.getAttribute("data-toggle"); var ch=sw.getAttribute("data-ch"); var n=NODES[nid]; setChannelCascade(n,ch,!n[ch].enabled); render(); return; }
+
+  // order
+  var mv=t.closest("[data-move]"); if(mv){ reorder(NODES[mv.getAttribute("data-node")], mv.getAttribute("data-move")); render(); return; }
+
+  // selection checkbox handled in change; bulk buttons:
+  var bulk=t.closest("[data-bulk]"); if(bulk){ doBulk(bulk.getAttribute("data-bulk")); return; }
+  if(t.closest("#bulk-clear")){ state.selected=new Set(); render(); return; }
+
+  // open modals
+  var pv=t.closest("[data-providers]"); if(pv){ state.modal={type:"providers",nodeId:pv.getAttribute("data-providers")}; render(); return; }
+  var mkb=t.closest("[data-markets]"); if(mkb){ state.modal={type:"markets",nodeId:mkb.getAttribute("data-markets")}; render(); return; }
+  var tmb=t.closest("[data-template]"); if(tmb){ state.modalTab=0; state.modal={type:"template",nodeId:tmb.getAttribute("data-template")}; render(); return; }
+  var tmpls=t.closest("[data-templates]"); if(tmpls){ state.modal={type:"templates",nodeId:tmpls.getAttribute("data-templates")}; render(); return; }
+  var ageb=t.closest("[data-age]"); if(ageb){ state.modal={type:"age",nodeId:ageb.getAttribute("data-age")}; render(); return; }
+  if(t.closest("#open-disabled-summary")){ state.modal={type:"disabled-summary"}; render(); return; }
+
+  // toolbar
+  if(t.closest("#expand-all")){ Object.keys(NODES).forEach(function(k){ if(NODES[k].childIds.length && NODES[k].type!=="event") state.expanded.add(k); }); render(); return; }
+  if(t.closest("#collapse-all")){ state.expanded=new Set(); render(); return; }
+});
+
+function expandToNode(node){ ancestors(node).forEach(function(a){ state.expanded.add(a.id); }); if(node.childIds.length) state.expanded.add(node.id); }
+function scrollToNode(id){ /* best-effort: no-op in prototype (rows are re-rendered) */ }
+
+function doBulk(action){
+  var ch = action.indexOf("live")!==-1?"live":"prematch";
+  var val = action.indexOf("enable")===0;
+  state.selected.forEach(function(id){ var n=NODES[id]; if(n) setChannelCascade(n,ch,val); });
+  render();
+}
+
+root.addEventListener("change", function(e){
+  if(e.target.id==="partner-sel"){ state.partner=e.target.value; render(); return; }
+  if(e.target.id==="age-filter"){ state.ageFilter=e.target.value; render(); return; }
+  var cb=e.target.closest("[data-sel]"); if(cb){ var id=cb.getAttribute("data-sel"); if(cb.checked)state.selected.add(id); else state.selected.delete(id); render(); return; }
+});
+
+root.addEventListener("input", function(e){
+  if(e.target.id==="cov-search"){ state.search=e.target.value; render(); return; }
+});
+
+/* mode segmented control */
+root.addEventListener("click", function(e){
+  var seg=e.target.closest("[data-mode]"); if(seg){ state.mode=seg.getAttribute("data-mode"); render(); }
+});
+
+/* ----- modal events ----- */
+modalRoot.addEventListener("click", function(e){
+  var t=e.target;
+  if(t.id==="overlay" || t.id==="modal-close" || t.id==="modal-close2"){ state.modal=null; render(); return; }
+
+  // providers
+  var pu=t.closest("[data-prov-up]"); if(pu){ provMove(parseInt(pu.getAttribute("data-prov-up"),10),-1); return; }
+  var pd=t.closest("[data-prov-down]"); if(pd){ provMove(parseInt(pd.getAttribute("data-prov-down"),10),1); return; }
+  var px=t.closest("[data-prov-del]"); if(px){ provDel(parseInt(px.getAttribute("data-prov-del"),10)); return; }
+  if(t.id==="prov-add-btn"){ provAdd(); return; }
+
+  // market rules
+  var mr=t.closest("[data-mr]"); if(mr){
+    var n=NODES[state.modal.nodeId]; var key=mr.getAttribute("data-mr"); var ch=mr.getAttribute("data-mrch"); var val=mr.getAttribute("data-mrval");
+    if(!n.marketRules[key]) n.marketRules[key]={};
+    if(val==="inherit") delete n.marketRules[key][ch]; else n.marketRules[key][ch]=val;
+    if(Object.keys(n.marketRules[key]).length===0) delete n.marketRules[key];
+    render(); return;
+  }
+
+  // template
+  var mtab=t.closest("[data-mtab]"); if(mtab){ state.modalTab=parseInt(mtab.getAttribute("data-mtab"),10); render(); return; }
+  var ap=t.closest("[data-apply-tmpl]"); if(ap){ NODES[ap.getAttribute("data-apply-node")].template=ap.getAttribute("data-apply-tmpl"); render(); return; }
+  var ct=t.closest("[data-clear-tmpl]"); if(ct){ NODES[ct.getAttribute("data-clear-tmpl")].template=null; render(); return; }
+
+  // age
+  var sa=t.closest("[data-set-age]"); if(sa){ NODES[sa.getAttribute("data-age-node")].ageGroup=sa.getAttribute("data-set-age"); render(); return; }
+});
+modalRoot.addEventListener("input", function(e){
+  if(e.target.id==="picker-search"){ state.modal.q=e.target.value; render(); var el=document.getElementById("picker-search"); if(el){el.focus(); var v=el.value; el.setSelectionRange(v.length,v.length);} return; }
+});
+modalRoot.addEventListener("change", function(e){
+  var pk=e.target.closest("[data-pick]"); if(pk){
+    var id=pk.getAttribute("data-pick"); var kind=pk.getAttribute("data-pick-kind");
+    if(pk.checked){ if(kind==="trn"&&PICKED_TOURNAMENTS.indexOf(id)===-1)PICKED_TOURNAMENTS.push(id); if(kind==="event"&&PICKED_EVENTS.indexOf(id)===-1)PICKED_EVENTS.push(id); }
+    render(); return;
+  }
+});
+function provMove(i,d){ var n=NODES[state.modal.nodeId]; var arr=(n.providers[state.partner]||[]).slice(); var j=i+d; if(j<0||j>=arr.length)return; var tmp=arr[i];arr[i]=arr[j];arr[j]=tmp; n.providers[state.partner]=arr; render(); }
+function provDel(i){ var n=NODES[state.modal.nodeId]; var arr=(n.providers[state.partner]||[]).slice(); arr.splice(i,1); n.providers[state.partner]=arr; render(); }
+function provAdd(){ var sel=document.getElementById("prov-add-sel"); if(!sel||!sel.value)return; var n=NODES[state.modal.nodeId]; var arr=(n.providers[state.partner]||[]).slice(); arr.push(sel.value); n.providers[state.partner]=arr; render(); }
+
+document.addEventListener("keydown", function(e){ if(e.key==="Escape" && state.modal){ state.modal=null; render(); } });
+
+render();
+</script>
+</body>
+</html>
