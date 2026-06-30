@@ -151,7 +151,7 @@
   .dim-tag.EVT{ background:#f3eefb; color:#7c4dd6;}
   .dim-tag.MKT{ background:#fbeef3; color:#c43d7a;}
   .name { font-weight:550; }
-  .name.dis { color:var(--muted); text-decoration:line-through; text-decoration-color:var(--border-strong);}
+  .name.dis { color:var(--muted); }
   .rowtag { font-size:10px; padding:1px 6px; border-radius:5px; font-weight:700; }
   .rowtag.flag { background:#eef2f7; color:var(--muted); }
   .sub-muted { color:var(--muted); font-size:11px;}
@@ -272,6 +272,7 @@
   .navtab:hover { border-color:var(--accent); color:var(--accent); }
   .navtab.on { background:var(--accent); border-color:var(--accent); color:#fff; }
   .navtab .nt-ic { font-size:14px; }
+  .navtab .nt-18 { font-size:10px; font-weight:800; letter-spacing:.3px; border:1.5px solid currentColor; border-radius:5px; padding:1px 4px; line-height:1; }
   .navtab-badge { background:rgba(16,24,40,.08); color:var(--muted); border-radius:999px; padding:1px 8px; font-size:11px; font-weight:700; }
   .navtab.on .navtab-badge { background:rgba(255,255,255,.25); color:#fff; }
 
@@ -286,7 +287,7 @@
   .mcol-row:hover { background:var(--row-hover); }
   .mcol-row.sel { background:var(--accent-soft); border-color:var(--accent); }
   .mcol-row.dragging { opacity:.4; }
-  .mcol-row.dim .mc-name { color:var(--muted); text-decoration:line-through; text-decoration-color:var(--border-strong); }
+  .mcol-row.dim .mc-name { color:var(--muted); }
   .mc-main { flex:1; min-width:0; display:flex; align-items:center; gap:7px; }
   .mc-name { flex:0 1 auto; font-weight:550; font-size:12.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .mc-cnt { color:var(--muted); font-size:11px; font-weight:600; flex-shrink:0; }
@@ -842,7 +843,7 @@ function navTabsHtml(){
   return '<div class="tabbar">'
     + tab("coverage","🗂","Coverage", null)
     + tab("picked-tournaments","🏆","Picked Tournaments", PICKED_TOURNAMENTS.length)
-    + tab("age-groups","🎂","Age groups", null)
+    + tab("age-groups","<span class=\"nt-18\">18+</span>","Age groups", null)
     + tab("market-templates","◳","Market templates", null)
   + '</div>';
 }
@@ -1102,11 +1103,13 @@ function pickedTournamentsMainHtml(){
 /* ---------- age groups view: define age group per tournament ---------- */
 function agpFilterHtml(){
   var sel=state.agpFilter;
-  var summary = sel.length===0 ? 'All age groups' : (sel.length<=2 ? sel.join(", ") : sel.length+' age groups');
+  function lbl(v){ return v===""?"Unassigned":v; }
+  var summary = sel.length===0 ? 'All age groups' : (sel.length<=2 ? sel.map(lbl).join(", ") : sel.length+' selected');
   var menu="";
   if(state.agpFilterOpen){
+    var opts=AGE_GROUPS.concat([""]); // "" = Unassigned
     menu='<div class="ms-menu">'
-      + AGE_GROUPS.map(function(a){ var on=sel.indexOf(a)!==-1; return '<div class="ms-opt '+(on?'sel':'')+'" data-agp-filter-opt="'+a+'"><span class="cb">'+(on?CHECK:'')+'</span><span>'+a+'</span></div>'; }).join("")
+      + opts.map(function(a){ var on=sel.indexOf(a)!==-1; return '<div class="ms-opt '+(on?'sel':'')+'" data-agp-filter-opt="'+a+'"><span class="cb">'+(on?CHECK:'')+'</span><span'+(a===""?' class="sub-muted"':'')+'>'+lbl(a)+'</span></div>'; }).join("")
       + '<div class="ms-tools"><button data-agp-filter-all>Select all</button><button data-agp-filter-clear>Clear</button></div>'
     + '</div>';
   }
@@ -1652,7 +1655,7 @@ root.addEventListener("click", function(e){
   // age-groups page: filter dropdown + per-tournament assignment
   if(t.closest("[data-agp-filter-toggle]")){ state.agpFilterOpen=!state.agpFilterOpen; state.agpRowOpen=null; render(); return; }
   var afo=t.closest("[data-agp-filter-opt]"); if(afo){ var afv=afo.getAttribute("data-agp-filter-opt"); var ai=state.agpFilter.indexOf(afv); if(ai===-1)state.agpFilter.push(afv); else state.agpFilter.splice(ai,1); render(); return; }
-  if(t.closest("[data-agp-filter-all]")){ state.agpFilter=AGE_GROUPS.slice(); render(); return; }
+  if(t.closest("[data-agp-filter-all]")){ state.agpFilter=AGE_GROUPS.concat([""]); render(); return; }
   if(t.closest("[data-agp-filter-clear]")){ state.agpFilter=[]; render(); return; }
   var agsp=t.closest("[data-agp-sport]"); if(agsp){ state.agpSportSel=agsp.getAttribute("data-agp-sport"); state.agpCatSel=null; state.agpRowOpen=null; render(); return; }
   var agcs=t.closest("[data-agp-cat-sel]"); if(agcs){ state.agpCatSel=agcs.getAttribute("data-agp-cat-sel"); state.agpRowOpen=null; render(); return; }
