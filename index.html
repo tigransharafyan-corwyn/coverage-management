@@ -1103,7 +1103,7 @@ function mcRowHtml(node, col, no, total, isSel){
       + liveBadge
     + '</span>'
     + chans
-    + ((node.type==="sport"||node.type==="tournament"||node.type==="event")?'<button class="row-gear" data-settings="'+node.id+'" title="Settings">'+GEAR+'</button>':'')
+    + ((node.type==="sport"||node.type==="tournament"||node.type==="event"||node.type==="market")?'<button class="row-gear" data-settings="'+node.id+'" title="Settings">'+GEAR+'</button>':'')
     + (hasKids?'<span class="mc-chev">'+CHEVRON+'</span>':'<span style="width:14px"></span>')
   + '</div>';
 }
@@ -1323,7 +1323,7 @@ function marketTemplatesMainHtml(){
     + '<div class="ms-opt '+(isAll?'sel':'')+'" data-mt-sport="__all__"><span class="cb">'+(isAll?CHECK:'')+'</span><span>All sports</span></div>'
     + sportNames.map(function(s){ var on=s===sport; return '<div class="ms-opt '+(on?'sel':'')+'" data-mt-sport="'+esc(s)+'"><span class="cb">'+(on?CHECK:'')+'</span><span>'+esc(s)+'</span></div>'; }).join("")
   + '</div>' : '';
-  var sportSel='<div class="ms" style="min-width:200px"><button class="ms-toggle" data-mt-sport-toggle>'+(isAll?'All sports':esc(sport))+'</button>'+sportMenu+'</div>';
+  var sportSel='<div class="ms" style="min-width:168px"><button class="ms-toggle" data-mt-sport-toggle>'+(isAll?'All sports':esc(sport))+'</button>'+sportMenu+'</div>';
 
   var cards = tmpls.length===0
     ? '<div class="empty-state">No templates '+(isAll?'yet':'for '+esc(sport)+' yet')+' — create one to get started.</div>'
@@ -1540,10 +1540,9 @@ function shell(title, sub, body, foot, wide){
 }
 
 /* --- feed providers --- */
-function providerModal(node){
+function providerEditorBody(node){
   var partner = state.partner;
   var list = (node.providers[partner]||[]).slice();
-  // inherited
   var inh=null, p=node.parentId; while(p){ if(NODES[p].providers[partner]){ inh={node:NODES[p], list:NODES[p].providers[partner]}; break;} p=NODES[p].parentId; }
   var rows = list.length? list.map(function(name,i){
     return '<div class="prov-row">'
@@ -1555,16 +1554,16 @@ function providerModal(node){
       + '<button class="icon-btn" data-prov-del="'+i+'" title="Remove">✕</button>'
     + '</div>';
   }).join("") : '<div class="sub-muted" style="padding:6px 0 12px">No provider priority set at this level'+(inh?'. Inheriting from <b>'+esc(inh.node.name)+'</b>.':'.')+'</div>';
-
   var avail = PROVIDERS.filter(function(pr){ return list.indexOf(pr)===-1; });
   var addSel = '<select class="input" id="prov-add-sel" style="min-width:200px"><option value="">Add provider…</option>'
     + avail.map(function(pr){ return '<option value="'+esc(pr)+'">'+esc(pr)+'</option>'; }).join("") + '</select>';
-
-  var body = '<div class="info-banner blue">ℹ️ Provider priority is set per <b>partner</b> and per <b>level</b>. Lower numbers win; deeper levels override inherited priority. Currently editing <b>'+esc(partnerName(partner))+'</b>.</div>'
+  return '<div class="info-banner blue">ℹ️ Provider priority is set per <b>partner</b> and per <b>level</b>. Lower numbers win; deeper levels override inherited priority. Currently editing <b>'+esc(partnerName(partner))+'</b>.</div>'
     + (inh? '<div class="sub-muted" style="margin-bottom:10px">Inherited from <b>'+esc(inh.node.name)+'</b>: '+inh.list.map(function(x,i){return (i+1)+'. '+esc(x);}).join(" · ")+'</div>':'')
     + rows
     + '<div style="display:flex; gap:8px; margin-top:10px">'+addSel+'<button class="btn" id="prov-add-btn">Add</button></div>';
-
+}
+function providerModal(node){
+  var body = providerEditorBody(node);
   return shell('Feed Providers — '+esc(node.name),
     esc(node.type.toUpperCase())+' · '+esc(pathLabel(node)),
     body,
@@ -1687,13 +1686,16 @@ var SETTINGS_SECTIONS=[
   {k:"market-templates", ic:"◳", label:"Market templates"}
 ];
 function settingsModal(node){
-  var sec=state.modal.section||"market-priority";
-  var nav=SETTINGS_SECTIONS.map(function(s){
+  var SECTIONS = node.type==="market" ? [{k:"providers", ic:"🔌", label:"Feed providers"}] : SETTINGS_SECTIONS;
+  var sec = (state.modal.section && SECTIONS.some(function(s){return s.k===state.modal.section;})) ? state.modal.section : SECTIONS[0].k;
+  var nav=SECTIONS.map(function(s){
     return '<button class="set-nav '+(sec===s.k?'on':'')+'" data-settings-section="'+s.k+'"><span class="set-ic">'+s.ic+'</span><span>'+s.label+'</span></button>';
   }).join("");
 
   var content;
-  if(sec==="market-priority"){
+  if(sec==="providers"){
+    content = providerEditorBody(node);
+  } else if(sec==="market-priority"){
     var sport=sportOf(node);
     var keys=marketOrderKeys(node), total=keys.length;
     var mpq=(state.modal.mpq||"").toLowerCase();
@@ -1759,8 +1761,8 @@ function settingsModal(node){
       }).join("")+'</div>';
     }
   } else {
-    var lbl=SETTINGS_SECTIONS.filter(function(s){return s.k===sec;})[0].label;
-    content='<div class="empty-state">“'+esc(lbl)+'” — placeholder section in this prototype.</div>';
+    var lblo=SECTIONS.filter(function(s){return s.k===sec;})[0];
+    content='<div class="empty-state">“'+esc(lblo?lblo.label:sec)+'” — placeholder section in this prototype.</div>';
   }
 
   var body='<div class="set-shell"><div class="set-nav-col">'+nav+'</div><div class="set-content">'+content+'</div></div>';
