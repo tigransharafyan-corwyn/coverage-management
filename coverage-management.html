@@ -1333,17 +1333,8 @@ function marketTemplatesMainHtml(){
     ? '<button class="btn primary" data-mt-new disabled title="Pick a sport to add a template">+ New template</button>'
     : '<button class="btn primary" data-mt-new>+ New template</button>';
 
-  var cloneList = isAll
-    ? Object.keys(TEMPLATES).map(function(k){return TEMPLATES[k];}).sort(function(a,b){ return a.sport.localeCompare(b.sport)||a.name.localeCompare(b.name); })
-    : templatesForSport(sport);
-  var cloneMenu = state.mtCloneOpen
-    ? '<div class="ms-menu" style="left:auto; right:0; min-width:260px; max-height:340px">'
-        + (cloneList.length
-            ? cloneList.map(function(tp){ return '<div class="ms-opt" data-mt-clonefrom="'+tp.id+'">'+(isAll?'<span class="dim-tag SPT" style="margin-right:6px">'+esc(tp.sport)+'</span>':'')+'<span>'+esc(tp.name)+'</span><span class="sub-muted" style="margin-left:auto">'+tp.markets.length+'</span></div>'; }).join("")
-            : '<div class="sub-muted" style="padding:8px">No templates to clone.</div>')
-      + '</div>'
-    : '';
-  var cloneCtrl = '<div class="ms"><button class="btn" data-mt-clone-toggle>⧉ Clone from…</button>'+cloneMenu+'</div>';
+  var hasAny = (isAll ? Object.keys(TEMPLATES).length : templatesForSport(sport).length) > 0;
+  var cloneCtrl = '<button class="btn" data-clone-from-open'+(hasAny?'':' disabled')+'>⧉ Clone from…</button>';
 
   return '<div class="panel">'
     + '<div class="panel-head"><h2>Market Templates</h2><span class="hint">create market sets per sport &amp; toggle their live / prematch availability</span>'
@@ -1411,6 +1402,28 @@ function marketGroupsMainHtml(){
     + '</div>'
     + '<div class="panel-body">'+body+'</div>'
   + '</div>';
+}
+
+/* --- clone-from popup: pick an existing template to duplicate --- */
+function cloneFromModal(){
+  var isAll = state.mtSport==="__all__";
+  var list = isAll
+    ? Object.keys(TEMPLATES).map(function(k){return TEMPLATES[k];}).sort(function(a,b){ return a.sport.localeCompare(b.sport)||a.name.localeCompare(b.name); })
+    : templatesForSport(state.mtSport);
+  var rows = list.length
+    ? '<div class="stpl-list">'+list.map(function(t){
+        var amk=marketsFor(t.sport), lc=0,pc=0,ic2=0;
+        amk.forEach(function(m){ var a=tmplAvail(t,m.key); if(a.live)lc++; if(a.prematch)pc++; if(a.live||a.prematch)ic2++; });
+        return '<div class="stpl-row" data-clonefrom="'+t.id+'" style="cursor:pointer">'
+          + (isAll?'<span class="dim-tag SPT">'+esc(t.sport)+'</span>':'')
+          + '<span class="stpl-name">'+esc(t.name)+'</span>'
+          + '<span class="mt-meta">'+ic2+' markets · <span class="ch-lbl live">'+lc+' L</span> · <span class="ch-lbl pre">'+pc+' P</span></span>'
+          + '<span class="spacer"></span><button class="btn sm primary" data-clonefrom="'+t.id+'">Clone</button>'
+        + '</div>';
+      }).join("")+'</div>'
+    : '<div class="empty-state">No templates to clone.</div>';
+  var body='<div class="info-banner blue">ℹ️ Pick a template to duplicate. A copy opens in the editor so you can rename and adjust it before it’s saved.</div>'+rows;
+  return shell('Clone Market Template', 'duplicate an existing template', body, '<button class="btn" id="modal-close">Cancel</button>', true);
 }
 
 /* --- create / edit template modal --- */
@@ -1510,6 +1523,7 @@ function modalHtml(){
     case "template-form": return templateFormModal();
     case "assign": return assignModal(TEMPLATES[m.templateId]);
     case "delete-template": return deleteTemplateModal(TEMPLATES[m.templateId]);
+    case "clone-from": return cloneFromModal();
     case "disabled-summary": return disabledSummaryModal();
     case "add-picked-trn": return pickerModal("tournament","Add Picked Tournaments", PICKED_TOURNAMENTS, "trn");
     default: return "";
@@ -1992,8 +2006,7 @@ root.addEventListener("click", function(e){
   if(t.closest("[data-mt-sport-toggle]")){ state.mtSportOpen=!state.mtSportOpen; render(); return; }
   var mts=t.closest("[data-mt-sport]"); if(mts){ state.mtSport=mts.getAttribute("data-mt-sport"); state.mtSportOpen=false; state.mtExpanded=null; render(); return; }
   if(t.closest("[data-mt-new]")){ if(state.mtSport==="__all__")return; state.modal={type:"template-form", mode:"new", sport:state.mtSport, name:"", avail:{}, mq:""}; render(); return; }
-  if(t.closest("[data-mt-clone-toggle]")){ state.mtCloneOpen=!state.mtCloneOpen; render(); return; }
-  var mcf=t.closest("[data-mt-clonefrom]"); if(mcf){ var cfid=cloneTemplate(mcf.getAttribute("data-mt-clonefrom")); state.mtCloneOpen=false; if(cfid){ var cft=TEMPLATES[cfid]; state.mtSport=cft.sport; state.modal={type:"template-form", mode:"edit", templateId:cfid, sport:cft.sport, name:cft.name, avail:JSON.parse(JSON.stringify(cft.avail||{})), mq:""}; } render(); return; }
+  if(t.closest("[data-clone-from-open]")){ state.modal={type:"clone-from"}; render(); return; }
   var mtedit=t.closest("[data-mt-edit]"); if(mtedit){ var et=TEMPLATES[mtedit.getAttribute("data-mt-edit")]; state.modal={type:"template-form", mode:"edit", templateId:et.id, sport:et.sport, name:et.name, avail:JSON.parse(JSON.stringify(et.avail||{})), mq:""}; render(); return; }
   var mtcl=t.closest("[data-mt-clone]"); if(mtcl){ var cid=cloneTemplate(mtcl.getAttribute("data-mt-clone")); if(cid){ var ct=TEMPLATES[cid]; state.mtSport=ct.sport; state.modal={type:"template-form", mode:"edit", templateId:cid, sport:ct.sport, name:ct.name, avail:JSON.parse(JSON.stringify(ct.avail||{})), mq:""}; } render(); return; }
   var mtasg=t.closest("[data-mt-assign]"); if(mtasg){ state.modal={type:"assign", templateId:mtasg.getAttribute("data-mt-assign"), exp:new Set(), q:""}; render(); return; }
@@ -2096,6 +2109,9 @@ root.addEventListener("dragend", function(){ if(dragId||dragPick||dragMg){ dragI
 modalRoot.addEventListener("click", function(e){
   var t=e.target;
   if(t.id==="overlay" || t.id==="modal-close" || t.id==="modal-close2"){ state.modal=null; render(); return; }
+
+  // clone-from popup: clone the chosen template and open the editor
+  var cfr=t.closest("[data-clonefrom]"); if(cfr){ var cfid=cloneTemplate(cfr.getAttribute("data-clonefrom")); if(cfid){ var cft=TEMPLATES[cfid]; state.mtSport=cft.sport; state.modal={type:"template-form", mode:"edit", templateId:cfid, sport:cft.sport, name:cft.name, avail:JSON.parse(JSON.stringify(cft.avail||{})), mq:""}; } render(); return; }
 
   // picker tree expand/collapse
   var px=t.closest("[data-pk-exp]"); if(px){ var pid=px.getAttribute("data-pk-exp"); if(!state.modal.exp)state.modal.exp=new Set(); if(state.modal.exp.has(pid))state.modal.exp.delete(pid); else state.modal.exp.add(pid); render(); return; }
