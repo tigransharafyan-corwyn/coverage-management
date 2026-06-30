@@ -282,6 +282,9 @@
   .mcol-head { padding:9px 12px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:8px; background:#f8fafc; border-radius:10px 10px 0 0; }
   .mcol-head .lv { font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.5px; color:var(--muted); }
   .mcol-head .cnt { background:#eef2f7; color:var(--muted); border-radius:999px; padding:1px 7px; font-size:10px; font-weight:700; }
+  .mcol-search { padding:6px 8px; border-bottom:1px solid var(--border); }
+  .mcol-search-in { width:100%; border:1px solid var(--border-strong); border-radius:7px; padding:6px 9px; font-size:12px; font-family:inherit; color:var(--text); }
+  .mcol-search-in:focus { outline:none; border-color:var(--accent); }
   .mcol-body { overflow-y:auto; padding:6px; }
   .mcol-row { display:flex; align-items:center; gap:6px; padding:5px 7px; border-radius:8px; cursor:pointer; border:1px solid transparent; }
   .mcol-row:hover { background:var(--row-hover); }
@@ -756,6 +759,7 @@ var state = {
   agpRowOpen: null,          // age-groups page: tournament id whose age dropdown is open
   agpSportSel: "",           // age-groups page: selected sport (column 1)
   agpCatSel: "",             // age-groups page: selected category (column 2)
+  colSearch: {},             // coverage Miller columns: per-column (pkey) search query
   mtSport: "",               // market-templates page: selected sport
   mtSportOpen: false,        // market-templates page: sport dropdown open
   mtExpanded: null,          // market-templates page: expanded template id
@@ -848,8 +852,8 @@ function navTabsHtml(){
   return '<div class="tabbar">'
     + tab("coverage","🗂","Coverage", null)
     + tab("picked-tournaments","🏆","Picked Tournaments", PICKED_TOURNAMENTS.length)
-    + tab("age-groups","<span class=\"nt-18\">18+</span>","Age groups", null)
-    + tab("market-templates","◳","Market templates", null)
+    + tab("age-groups","<span class=\"nt-18\">18+</span>","Age Groups", null)
+    + tab("market-templates","◳","Market Templates", null)
   + '</div>';
 }
 
@@ -874,7 +878,7 @@ function columnItems(col){
   var ordered = col.parent ? sortedChildren(col.parent) : sortedChildren(null);
   var rank={}; ordered.forEach(function(n,i){ rank[n.id]=i+1; });
   var shown = ordered.slice();
-  var q=state.search.trim().toLowerCase();
+  var q=(state.colSearch[col.pkey]||"").trim().toLowerCase();
   if(q) shown=shown.filter(function(n){ return n.name.toLowerCase().indexOf(q)!==-1; });
   if(state.ageFilters.length && col.level==="tournament") shown=shown.filter(function(n){ return state.ageFilters.indexOf(n.ageGroup)!==-1; });
   return {ordered:ordered, shown:shown, rank:rank, total:ordered.length};
@@ -907,7 +911,6 @@ function coverageMainHtml(){
         + '<span class="spacer"></span>'
         + '<div class="toolbar">'
           + ageFilterHtml()
-          + '<input id="cov-search" class="search-box" placeholder="Search…" value="'+esc(state.search)+'">'
         + '</div>'
       + '</div>'
       + '<div class="panel-body" style="padding:12px">'
@@ -927,7 +930,7 @@ function spinnerHtml(node, no, total, disabled){
 }
 function miniSwitch(node, ch){
   var own=node[ch].enabled, eff=effChannel(node,ch), inhOff=own&&!eff;
-  return '<span class="sw mini '+(own?'on':'')+(inhOff?' inherited-off':'')+'" data-ch="'+ch+'" data-toggle="'+node.id+'" data-channel="'+ch+'" title="'+(own?'Disable':'Enable')+' '+ch+(inhOff?' (parent off)':'')+'"><span class="track"></span></span>';
+  return '<span class="sw mini '+(own?'on':'')+(inhOff?' inherited-off':'')+'" data-ch="'+ch+'" data-toggle="'+node.id+'" data-channel="'+ch+'" title="'+(own?'Disable':'Enable')+' '+ch+(inhOff?' (Parent Off)':'')+'"><span class="track"></span></span>';
 }
 // effective market state from ANCESTORS only (excludes levelNode's own rule)
 function inheritedMarketState(levelNode, key, ch){
@@ -952,8 +955,9 @@ function marketSwitch(levelNode, key, ch){
 function mcolHtml(col){
   var ci = columnItems(col);
   var sel = state.colSel[col.pkey];
+  var cq=state.colSearch[col.pkey]||"";
   var rows = ci.shown.length===0
-    ? '<div class="sub-muted" style="padding:14px; text-align:center">No items'+(state.search||state.ageFilters.length?' match the filter':'')+'.</div>'
+    ? '<div class="sub-muted" style="padding:14px; text-align:center">No items'+(cq||state.ageFilters.length?' match the filter':'')+'.</div>'
     : ci.shown.map(function(n){
         return mcRowHtml(n, col, ci.rank[n.id], ci.total, sel===n.id);
       }).join("");
@@ -962,6 +966,7 @@ function mcolHtml(col){
     + '<div class="mcol-head">'
       + '<span class="lv">'+label+'</span><span class="cnt">'+ci.shown.length+'</span>'
     + '</div>'
+    + '<div class="mcol-search"><input class="mcol-search-in" id="cs-'+col.pkey+'" data-col-search="'+col.pkey+'" placeholder="Search '+esc(label.toLowerCase())+'…" value="'+esc(cq)+'"></div>'
     + '<div class="mcol-body">'+rows+'</div>'
   + '</div>';
 }
@@ -1006,7 +1011,7 @@ function detailsHtml(node){
       var own=node[ch].enabled, eff=effChannel(node,ch), inhOff=own&&!eff;
       return '<div class="cd-block"><label>'+label+'</label>'
         + '<span class="sw '+(own?'on':'')+(inhOff?' inherited-off':'')+'" data-ch="'+ch+'" data-toggle="'+node.id+'" data-channel="'+ch+'"><span class="track"></span></span>'
-        + (inhOff?'<span class="inh-note">parent off</span>':'')+'</div>';
+        + (inhOff?'<span class="inh-note">Parent Off</span>':'')+'</div>';
     }
     bigToggles=(state.mode!=="prematch"?bt('live','Live'):'')+(state.mode!=="live"?bt('prematch','Prematch'):'');
   }
@@ -1801,7 +1806,7 @@ root.addEventListener("change", function(e){
 });
 
 root.addEventListener("input", function(e){
-  if(e.target.id==="cov-search"){ state.search=e.target.value; render(); return; }
+  if(e.target.classList && e.target.classList.contains("mcol-search-in")){ state.colSearch[e.target.getAttribute("data-col-search")]=e.target.value; render(); return; }
   if(e.target.id==="agp-search"){ state.agpSearch=e.target.value; render(); return; }
   var mtr=e.target.closest && e.target.closest("[data-mt-rename]"); if(mtr){ var tt=TEMPLATES[mtr.getAttribute("data-mt-rename")]; if(tt) tt.name=e.target.value; return; }
 });
