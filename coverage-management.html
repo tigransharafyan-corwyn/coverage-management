@@ -402,6 +402,11 @@
   .mg-chip { display:inline-flex; align-items:center; gap:6px; background:#eef2f7; border-radius:7px; padding:4px 8px; font-size:12px; font-weight:550; }
   .mg-chip .mg-x { cursor:pointer; color:var(--muted); font-weight:700; }
   .mg-chip .mg-x:hover { color:var(--neg); }
+  .mg-sugg-list { border-bottom:1px solid var(--border); max-height:200px; overflow-y:auto; background:#f8fafc; }
+  .mg-sugg { display:flex; align-items:center; gap:8px; padding:8px 12px; cursor:pointer; font-size:12.5px; }
+  .mg-sugg:hover { background:var(--accent-soft); color:var(--accent); }
+  .mg-sugg .mg-add-ic { width:16px; height:16px; border-radius:5px; background:var(--accent); color:#fff; display:inline-flex; align-items:center; justify-content:center; font-weight:700; font-size:12px; flex-shrink:0; }
+  .mg-sel-row .mc-name { font-weight:550; }
   .mt-name { border:1px solid transparent; background:transparent; font-size:13.5px; font-weight:650; color:var(--text); border-radius:6px; padding:4px 7px; font-family:inherit; min-width:240px; }
   .mt-name:hover { border-color:var(--border-strong); }
   .mt-name:focus { outline:none; border-color:var(--accent); background:#fff; }
@@ -1383,27 +1388,33 @@ function marketGroupsMainHtml(){
   }).join("") : '<div class="sub-muted" style="padding:14px; text-align:center">No groups yet.</div>';
   var col2='<div class="mcol"><div class="mcol-head"><span class="lv">Groups</span><span class="cnt">'+total+'</span><span class="spacer"></span><button class="btn sm primary" data-mg-new>+ New</button></div><div class="mcol-body">'+groupRows+'</div></div>';
 
-  // Column 3 — Markets in the selected group (toggle membership)
+  // Column 3 — search to add; show only selected markets
   var col3body, col3cnt="";
   if(selGroup){
     var inSet={}; selGroup.markets.forEach(function(k){ inSet[k]=true; });
     var mq=(state.mgMkQ||"").toLowerCase();
-    var shown = mq? allMk.filter(function(m){ return m.label.toLowerCase().indexOf(mq)!==-1; }) : allMk;
-    col3cnt = '<span class="cnt">'+selGroup.markets.length+'/'+allMk.length+'</span>';
-    var mkRows = shown.length? shown.map(function(m){ var on=!!inSet[m.key];
-      return '<div class="mcol-row">'
-        + '<span class="mc-main"><span class="mc-name">'+esc(m.label)+'</span></span>'
-        + '<span class="sw mini '+(on?'on':'')+'" data-ch="prematch" data-mg-mktoggle-group="'+selGroup.id+'" data-mg-mktoggle-key="'+m.key+'" title="'+(on?'Remove from group':'Add to group')+'"><span class="track"></span></span>'
-      + '</div>';
-    }).join("") : '<div class="sub-muted" style="padding:14px; text-align:center">No markets match.</div>';
-    col3body = '<div class="mcol-search"><input class="mcol-search-in" id="mg-mk-search" data-mg-mk-search placeholder="Search markets…" value="'+esc(state.mgMkQ||"")+'"></div><div class="mcol-body">'+mkRows+'</div>';
+    var avail = allMk.filter(function(m){ return !inSet[m.key]; });
+    var availMatch = mq ? avail.filter(function(m){ return m.label.toLowerCase().indexOf(mq)!==-1; }) : [];
+    col3cnt = '<span class="cnt">'+selGroup.markets.length+'</span>';
+    var sugg = mq
+      ? '<div class="mg-sugg-list">'+(availMatch.length
+          ? availMatch.map(function(m){ return '<div class="mg-sugg" data-mg-add-group="'+selGroup.id+'" data-mg-add-key="'+m.key+'"><span class="mg-add-ic">+</span><span>'+esc(m.label)+'</span></div>'; }).join("")
+          : '<div class="sub-muted" style="padding:8px 12px">No more markets match “'+esc(state.mgMkQ)+'”.</div>')
+        + '</div>'
+      : '';
+    var selRows = selGroup.markets.length
+      ? selGroup.markets.map(function(k){ return '<div class="mcol-row mg-sel-row"><span class="mc-main"><span class="mc-name">'+esc(marketLabelFor(sport,k))+'</span></span><button class="icon-btn" data-mg-rm-group="'+selGroup.id+'" data-mg-rm-key="'+k+'" title="Remove from group">✕</button></div>'; }).join("")
+      : '<div class="sub-muted" style="padding:16px; text-align:center">No markets yet — search above to add.</div>';
+    col3body = '<div class="mcol-search"><input class="mcol-search-in" id="mg-mk-search" data-mg-mk-search placeholder="Search markets to add…" value="'+esc(state.mgMkQ||"")+'"></div>'
+      + sugg
+      + '<div class="mcol-body">'+selRows+'</div>';
   } else {
     col3body = '<div class="mcol-body"><div class="sub-muted" style="padding:14px; text-align:center">Select a group to manage its markets.</div></div>';
   }
   var col3='<div class="mcol"><div class="mcol-head"><span class="lv">Markets</span>'+col3cnt+'</div>'+col3body+'</div>';
 
   return '<div class="panel">'
-    + '<div class="panel-head"><h2>Market Groups</h2><span class="hint">pick a sport → group, toggle markets in/out · drag or set group priority</span></div>'
+    + '<div class="panel-head"><h2>Market Groups</h2><span class="hint">pick a sport → group · search to add markets · drag or set group priority</span></div>'
     + '<div class="panel-body" style="padding:12px"><div class="mcols">'+col1+col2+col3+'</div></div>'
   + '</div>';
 }
@@ -2033,7 +2044,8 @@ root.addEventListener("click", function(e){
   if(t.closest("[data-mg-new]")){ var ngid=newGroup(state.mgSport); state.mgGroupSel=ngid; render(); return; }
   var mgdel=t.closest("[data-mg-del]"); if(mgdel){ var did=mgdel.getAttribute("data-mg-del"); deleteGroup(did); if(state.mgGroupSel===did) state.mgGroupSel=null; render(); return; }
   var mgpd=t.closest("[data-mg-prio-dir]"); if(mgpd){ reorderGroup(state.mgSport, mgpd.getAttribute("data-mg-prio-id"), mgpd.getAttribute("data-mg-prio-dir")); render(); return; }
-  var mgmt=t.closest("[data-mg-mktoggle-group]"); if(mgmt){ var mgg=MARKET_GROUPS[mgmt.getAttribute("data-mg-mktoggle-group")]; var mgk=mgmt.getAttribute("data-mg-mktoggle-key"); if(mgg){ if(mgg.markets.indexOf(mgk)===-1) mgg.markets.push(mgk); else mgg.markets=mgg.markets.filter(function(x){return x!==mgk;}); } render(); return; }
+  var mgadd=t.closest("[data-mg-add-group]"); if(mgadd){ var mga=MARKET_GROUPS[mgadd.getAttribute("data-mg-add-group")]; var mgak=mgadd.getAttribute("data-mg-add-key"); if(mga && mga.markets.indexOf(mgak)===-1) mga.markets.push(mgak); render(); return; }
+  var mgrm=t.closest("[data-mg-rm-group]"); if(mgrm){ var mgr=MARKET_GROUPS[mgrm.getAttribute("data-mg-rm-group")]; var mgrk=mgrm.getAttribute("data-mg-rm-key"); if(mgr) mgr.markets=mgr.markets.filter(function(x){return x!==mgrk;}); render(); return; }
   if(t.closest("[data-mg-rename]")){ return; }
   var mggs=t.closest("[data-mg-group-sel]"); if(mggs){ if(t.closest(".spin")) return; state.mgGroupSel=mggs.getAttribute("data-mg-group-sel"); render(); return; }
 
