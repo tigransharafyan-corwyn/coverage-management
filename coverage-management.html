@@ -373,16 +373,13 @@
   .mt-mrow .sw { justify-self:center; }
   .mt-mname { font-weight:550; }
 
-  /* age groups page */
-  .agp-section { margin-bottom:16px; }
-  .agp-shead { display:flex; align-items:center; gap:8px; font-weight:700; font-size:13px; padding:7px 4px; border-bottom:1px solid var(--border); margin-bottom:4px; }
-  .agp-row { display:flex; align-items:center; gap:12px; padding:7px 8px; border-radius:8px; }
-  .agp-row:hover { background:var(--row-hover); }
-  .agp-cat { display:inline-flex; align-items:center; gap:7px; color:var(--muted); font-size:11.5px; width:190px; flex-shrink:0; }
-  .agp-name { font-weight:600; font-size:13px; }
-  .agp-spacer { flex:1; }
-  .agp-age { min-width:160px; flex-shrink:0; }
-  .agp-age .ms-toggle { min-height:32px; padding-top:6px; padding-bottom:6px; }
+  /* age groups page — Miller columns (overflow visible so the age dropdown isn't clipped) */
+  .agp-mcol { max-height:none; }
+  .agp-mcol .mcol-body { overflow:visible; }
+  .agp-trow { gap:8px; }
+  .agp-trow .mc-main { gap:7px; }
+  .agp-age { min-width:140px; flex-shrink:0; margin-left:auto; }
+  .agp-age .ms-toggle { min-height:30px; padding-top:5px; padding-bottom:5px; }
 
   /* custom multiselect (age groups) */
   .ms { position:relative; min-width:170px; }
@@ -751,6 +748,8 @@ var state = {
   agpFilter: [],             // age-groups page: show only these age groups
   agpFilterOpen: false,      // age-groups page filter dropdown open
   agpRowOpen: null,          // age-groups page: tournament id whose age dropdown is open
+  agpSportSel: "",           // age-groups page: selected sport (column 1)
+  agpCatSel: "",             // age-groups page: selected category (column 2)
   mtSport: "",               // market-templates page: selected sport
   mtSportOpen: false,        // market-templates page: sport dropdown open
   mtExpanded: null,          // market-templates page: expanded template id
@@ -1125,40 +1124,51 @@ function ageSelectHtml(trn){
   }
   return '<div class="ms agp-age"><button class="ms-toggle '+(trn.ageGroup?'':'placeholder')+'" data-agp-row="'+trn.id+'">'+esc(cur)+'</button>'+menu+'</div>';
 }
+function agpColHtml(label, count, rowsHtml){
+  return '<div class="mcol agp-mcol">'
+    + '<div class="mcol-head"><span class="lv">'+label+'</span><span class="cnt">'+count+'</span></div>'
+    + '<div class="mcol-body">'+(rowsHtml||'<div class="sub-muted" style="padding:14px; text-align:center">No items.</div>')+'</div>'
+  + '</div>';
+}
+function agpNavRow(node, sel, attr){
+  return '<div class="mcol-row'+(sel?' sel':'')+'" data-'+attr+'="'+node.id+'">'
+    + '<span class="mc-main"><span class="mc-name">'+esc(node.name)+'</span><span class="mc-cnt">'+node.childIds.length+'</span></span>'
+    + '<span class="mc-chev">'+CHEVRON+'</span>'
+  + '</div>';
+}
 function ageGroupsMainHtml(){
+  var sports=sortedChildren(null);
+  if(!state.agpSportSel || !NODES[state.agpSportSel]) state.agpSportSel=sports[0].id;
+  var sportNode=NODES[state.agpSportSel];
+  var cats=sortedChildren(sportNode);
+  if(!state.agpCatSel || !NODES[state.agpCatSel] || NODES[state.agpCatSel].parentId!==sportNode.id) state.agpCatSel=cats.length?cats[0].id:null;
+  var catNode=state.agpCatSel?NODES[state.agpCatSel]:null;
+  var trns=catNode?sortedChildren(catNode):[];
+
   var q=state.agpSearch.trim().toLowerCase();
+  function fq(list){ return q? list.filter(function(n){return n.name.toLowerCase().indexOf(q)!==-1;}) : list; }
   var flt=state.agpFilter;
-  var counts={}; AGE_GROUPS.forEach(function(a){counts[a]=0;}); var unassigned=0, totalTrn=0;
-  var sections = sortedChildren(null).map(function(sp){
-    var rows=[];
-    sortedChildren(sp).forEach(function(cat){
-      sortedChildren(cat).forEach(function(trn){
-        if(trn.type!=="tournament") return;
-        totalTrn++; if(trn.ageGroup) counts[trn.ageGroup]=(counts[trn.ageGroup]||0)+1; else unassigned++;
-        if(q && trn.name.toLowerCase().indexOf(q)===-1 && cat.name.toLowerCase().indexOf(q)===-1 && sp.name.toLowerCase().indexOf(q)===-1) return;
-        if(flt.length && flt.indexOf(trn.ageGroup||"")===-1) return;
-        rows.push('<div class="agp-row">'
-          + '<span class="agp-cat"><span class="dim-tag CAT">CAT</span>'+esc(cat.name)+'</span>'
-          + '<span class="agp-name">'+esc(trn.name)+'</span>'
-          + '<span class="agp-spacer"></span>'
-          + ageSelectHtml(trn)
-        + '</div>');
-      });
-    });
-    if(!rows.length) return "";
-    return '<div class="agp-section"><div class="agp-shead"><span class="dim-tag SPT">SPT</span>'+esc(sp.name)+'<span class="sub-muted"> · '+rows.length+'</span></div>'+rows.join("")+'</div>';
+  var trnsShown=fq(trns).filter(function(n){ return !flt.length || flt.indexOf(n.ageGroup||"")!==-1; });
+
+  // totals (unfiltered) for the banner
+  var totalTrn=0, unassigned=0;
+  Object.keys(NODES).forEach(function(k){ var n=NODES[k]; if(n.type==="tournament"){ totalTrn++; if(!n.ageGroup) unassigned++; } });
+
+  var col1=agpColHtml("Sports", sports.length, fq(sports).map(function(n){ return agpNavRow(n, state.agpSportSel===n.id, "agp-sport"); }).join(""));
+  var col2=agpColHtml("Categories", cats.length, fq(cats).map(function(n){ return agpNavRow(n, state.agpCatSel===n.id, "agp-cat-sel"); }).join(""));
+  var col3rows=trnsShown.map(function(n){
+    return '<div class="mcol-row agp-trow"><span class="mc-main"><span class="dim-tag TRN">TRN</span><span class="mc-name">'+esc(n.name)+'</span></span>'+ageSelectHtml(n)+'</div>';
   }).join("");
-  if(!sections) sections='<div class="empty-state">No tournaments match the current search / filter.</div>';
+  var col3=agpColHtml("Tournaments", trns.length, col3rows);
 
   return '<div class="panel">'
-    + '<div class="panel-head"><h2>Age Groups</h2><span class="hint">assign an age group to each tournament — used for filtering &amp; bulk actions</span>'
+    + '<div class="panel-head"><h2>Age Groups</h2><span class="hint">pick a sport → category, then assign an age group to each tournament</span>'
       + '<span class="spacer"></span>'
       + '<div class="toolbar">'+agpFilterHtml()+'<input id="agp-search" class="search-box" placeholder="Search…" value="'+esc(state.agpSearch)+'"></div>'
     + '</div>'
-    + '<div class="panel-body">'
-      + '<div class="info-banner blue">ℹ️ Age groups classify tournaments (e.g. youth or reserve competitions). The assignment here drives the age-group filter in Coverage. '
-        + '<b>'+totalTrn+'</b> tournaments · <b>'+unassigned+'</b> unassigned.</div>'
-      + sections
+    + '<div class="panel-body" style="padding:12px">'
+      + '<div class="info-banner blue">ℹ️ Age groups classify tournaments (e.g. youth or reserve competitions) and drive the age-group filter in Coverage. <b>'+totalTrn+'</b> tournaments · <b>'+unassigned+'</b> unassigned.</div>'
+      + '<div class="mcols">'+col1+col2+col3+'</div>'
     + '</div>'
   + '</div>';
 }
@@ -1644,6 +1654,8 @@ root.addEventListener("click", function(e){
   var afo=t.closest("[data-agp-filter-opt]"); if(afo){ var afv=afo.getAttribute("data-agp-filter-opt"); var ai=state.agpFilter.indexOf(afv); if(ai===-1)state.agpFilter.push(afv); else state.agpFilter.splice(ai,1); render(); return; }
   if(t.closest("[data-agp-filter-all]")){ state.agpFilter=AGE_GROUPS.slice(); render(); return; }
   if(t.closest("[data-agp-filter-clear]")){ state.agpFilter=[]; render(); return; }
+  var agsp=t.closest("[data-agp-sport]"); if(agsp){ state.agpSportSel=agsp.getAttribute("data-agp-sport"); state.agpCatSel=null; state.agpRowOpen=null; render(); return; }
+  var agcs=t.closest("[data-agp-cat-sel]"); if(agcs){ state.agpCatSel=agcs.getAttribute("data-agp-cat-sel"); state.agpRowOpen=null; render(); return; }
   var arw=t.closest("[data-agp-row]"); if(arw){ var rid=arw.getAttribute("data-agp-row"); state.agpRowOpen=(state.agpRowOpen===rid)?null:rid; state.agpFilterOpen=false; render(); return; }
   var ast=t.closest("[data-agp-set]"); if(ast){ var an=NODES[ast.getAttribute("data-agp-node")]; var aval=ast.getAttribute("data-agp-set"); an.ageGroup=aval||null; state.agpRowOpen=null; render(); return; }
 
