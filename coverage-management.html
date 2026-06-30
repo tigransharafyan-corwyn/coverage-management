@@ -1509,16 +1509,24 @@ function settingsModal(node){
   if(sec==="market-priority"){
     var sport=sportOf(node);
     var keys=marketOrderKeys(node), total=keys.length;
-    var rows=keys.map(function(k,i){
+    var mpq=(state.modal.mpq||"").toLowerCase();
+    var shownK = keys.map(function(k,i){ return {k:k, no:i+1}; }).filter(function(o){ return !mpq || marketLabelFor(sport,o.k).toLowerCase().indexOf(mpq)!==-1; });
+    var rows= shownK.length? shownK.map(function(o){ var k=o.k, no=o.no;
+      var lv=effMarket(node,k,'live').state==='on', pr=effMarket(node,k,'prematch').state==='on';
       return '<div class="mp-row" draggable="true" data-mp-key="'+k+'">'
         + '<span class="drag" title="Drag to reorder">⠿</span>'
-        + '<div class="spin"><input class="spin-in mp-prio" type="text" inputmode="numeric" value="'+(i+1)+'" data-mp-prio-key="'+k+'">'
-          + '<div class="spin-btns"><button data-mp-dir="up" data-mp-key="'+k+'" '+(i===0?'disabled':'')+'>▲</button>'
-          + '<button data-mp-dir="down" data-mp-key="'+k+'" '+(i===total-1?'disabled':'')+'>▼</button></div></div>'
+        + '<div class="spin"><input class="spin-in mp-prio" type="text" inputmode="numeric" value="'+no+'" data-mp-prio-key="'+k+'">'
+          + '<div class="spin-btns"><button data-mp-dir="up" data-mp-key="'+k+'" '+(no<=1?'disabled':'')+'>▲</button>'
+          + '<button data-mp-dir="down" data-mp-key="'+k+'" '+(no>=total?'disabled':'')+'>▼</button></div></div>'
         + '<span class="mp-name">'+esc(marketLabelFor(sport,k))+'</span>'
+        + '<span class="mc-ch">'
+          + '<span class="ch-lbl live">L</span><span class="sw mini '+(lv?'on':'')+'" data-ch="live" data-mp-toggle data-mp-tkey="'+k+'" data-mp-tch="live"><span class="track"></span></span>'
+          + '<span class="ch-lbl pre">P</span><span class="sw mini '+(pr?'on':'')+'" data-ch="prematch" data-mp-toggle data-mp-tkey="'+k+'" data-mp-tch="prematch"><span class="track"></span></span>'
+        + '</span>'
       + '</div>';
-    }).join("");
-    content='<div class="info-banner blue">ℹ️ Order in which markets are shown to players for this '+node.type+'. Drag the handle or set a priority number. Inherited by everything below unless overridden.</div>'
+    }).join("") : '<div class="sub-muted" style="padding:14px; text-align:center">No markets match “'+esc(state.modal.mpq||"")+'”.</div>';
+    content='<div class="info-banner blue">ℹ️ Order markets (drag or set a priority) and toggle each market’s <b>Live</b> / <b>Prematch</b> availability for this '+node.type+'. Inherited by everything below unless overridden.</div>'
+      + '<input id="mp-search" class="search-box" style="width:100%; max-width:none; margin-bottom:10px" placeholder="Search markets…" value="'+esc(state.modal.mpq||"")+'">'
       + '<div class="mp-list">'+rows+'</div>';
   } else if(sec==="market-templates"){
     var applied = node.template ? TEMPLATES[node.template] : null;
@@ -1875,6 +1883,7 @@ modalRoot.addEventListener("click", function(e){
   // settings: section switch + market-priority arrows
   var ss=t.closest("[data-settings-section]"); if(ss){ state.modal.section=ss.getAttribute("data-settings-section"); state.modal.confirmUnassign=false; render(); return; }
   var mpd=t.closest("[data-mp-dir]"); if(mpd){ moveMarketPrio(NODES[state.modal.nodeId], mpd.getAttribute("data-mp-key"), mpd.getAttribute("data-mp-dir")); render(); return; }
+  var mpt=t.closest("[data-mp-toggle]"); if(mpt){ var mpn=NODES[state.modal.nodeId]; var mtk=mpt.getAttribute("data-mp-tkey"); var mtc=mpt.getAttribute("data-mp-tch"); setMarketChannel(mpn, mtk, mtc, !(effMarket(mpn,mtk,mtc).state==='on')); render(); return; }
 
   // settings: unassign template (with confirmation)
   if(t.closest("[data-stpl-unassign]")){ state.modal.confirmUnassign=true; render(); return; }
@@ -1928,6 +1937,7 @@ modalRoot.addEventListener("input", function(e){
   if(e.target.id==="picker-search"){ state.modal.q=e.target.value; render(); var el=document.getElementById("picker-search"); if(el){el.focus(); var v=el.value; el.setSelectionRange(v.length,v.length);} return; }
   if(e.target.id==="asg-search"){ state.modal.q=e.target.value; render(); var ela=document.getElementById("asg-search"); if(ela){ela.focus(); var va=ela.value; ela.setSelectionRange(va.length,va.length);} return; }
   if(e.target.id==="nt-name"){ state.modal.name=e.target.value; return; }
+  if(e.target.id==="mp-search"){ state.modal.mpq=e.target.value; render(); var elp=document.getElementById("mp-search"); if(elp){elp.focus(); var vp=elp.value; elp.setSelectionRange(vp.length,vp.length);} return; }
   if(e.target.id==="nt-mkt-search"){ state.modal.mq=e.target.value; render(); var elm=document.getElementById("nt-mkt-search"); if(elm){elm.focus(); var vm=elm.value; elm.setSelectionRange(vm.length,vm.length);} return; }
   if(e.target.id==="sum-search"){ state.summaryFilters.q=e.target.value; render(); return; }
 });
