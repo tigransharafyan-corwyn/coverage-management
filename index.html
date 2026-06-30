@@ -17,6 +17,7 @@
     --pos: #12824a;
     --neg: #d23f3f;
     --warn: #b7791f;
+    --orange: #e8590c;
     --warn-soft: #fdf3e2;
     --live: #0ca678;        /* live channel */
     --live-soft: #e3faf3;
@@ -163,7 +164,9 @@
   .sw.on[data-ch="live"] .track { background:var(--live);}
   .sw.on[data-ch="prematch"] .track { background:var(--prematch);}
   .sw.on .track:after { left:17px; }
-  .sw.inherited-off .track { background:#f0c7c7; }
+  /* child enabled while parent is disabled → orange to flag the override */
+  .sw.on.inherited-off[data-ch] .track { background:var(--orange); }
+  .sw.on.inherited-off[data-ch] .track:after { box-shadow:0 1px 2px rgba(0,0,0,.25); }
   .sw.disabled { opacity:.5; cursor:not-allowed;}
   .ch-cell { display:flex; flex-direction:column; align-items:center; gap:3px;}
   .inh-note { font-size:9.5px; color:var(--neg); font-weight:600;}
@@ -351,6 +354,17 @@
   .pk-box.on { background:var(--pos); border-color:var(--pos); }
   .pk-box svg { width:11px; height:11px; }
   .pk-added { font-size:10px; font-weight:700; color:var(--pos); background:var(--live-soft); padding:1px 8px; border-radius:999px; }
+
+  /* age groups page */
+  .agp-section { margin-bottom:16px; }
+  .agp-shead { display:flex; align-items:center; gap:8px; font-weight:700; font-size:13px; padding:7px 4px; border-bottom:1px solid var(--border); margin-bottom:4px; }
+  .agp-row { display:flex; align-items:center; gap:12px; padding:7px 8px; border-radius:8px; }
+  .agp-row:hover { background:var(--row-hover); }
+  .agp-cat { display:inline-flex; align-items:center; gap:7px; color:var(--muted); font-size:11.5px; width:190px; flex-shrink:0; }
+  .agp-name { font-weight:600; font-size:13px; }
+  .agp-spacer { flex:1; }
+  .agp-age { min-width:160px; flex-shrink:0; }
+  .agp-age .ms-toggle { min-height:32px; padding-top:6px; padding-bottom:6px; }
 
   /* custom multiselect (age groups) */
   .ms { position:relative; min-width:170px; }
@@ -698,6 +712,10 @@ var state = {
   mode: "both",              // both | live | prematch
   ageFilters: [],            // selected age groups (empty = all)
   ageMenuOpen: false,        // custom multiselect dropdown open
+  agpSearch: "",             // age-groups page search
+  agpFilter: [],             // age-groups page: show only these age groups
+  agpFilterOpen: false,      // age-groups page filter dropdown open
+  agpRowOpen: null,          // age-groups page: tournament id whose age dropdown is open
   search: "",
   colSel: {},                // parentKey ("root" or nodeId) -> selected child id  (Miller columns)
   focusId: null,             // node shown in the details panel
@@ -772,6 +790,7 @@ function kpisHtml(){
 /* ---------- view router ---------- */
 function mainViewHtml(){
   if(state.view==="picked-tournaments") return pickedTournamentsMainHtml();
+  if(state.view==="age-groups") return ageGroupsMainHtml();
   return coverageMainHtml();
 }
 
@@ -785,6 +804,7 @@ function navTabsHtml(){
   return '<div class="tabbar">'
     + tab("coverage","🗂","Coverage", null)
     + tab("picked-tournaments","🏆","Picked Tournaments", PICKED_TOURNAMENTS.length)
+    + tab("age-groups","🎂","Age groups", null)
   + '</div>';
 }
 
@@ -1036,6 +1056,69 @@ function pickedTournamentsMainHtml(){
     + '<div class="panel-body">'
       + '<div class="info-banner blue">ℹ️ Top tournaments appear pinned at the top of the player iframe’s left tree, in this priority order, so players open their events directly.</div>'
       + cards
+    + '</div>'
+  + '</div>';
+}
+
+/* ---------- age groups view: define age group per tournament ---------- */
+function agpFilterHtml(){
+  var sel=state.agpFilter;
+  var summary = sel.length===0 ? 'All age groups' : (sel.length<=2 ? sel.join(", ") : sel.length+' age groups');
+  var menu="";
+  if(state.agpFilterOpen){
+    menu='<div class="ms-menu">'
+      + AGE_GROUPS.map(function(a){ var on=sel.indexOf(a)!==-1; return '<div class="ms-opt '+(on?'sel':'')+'" data-agp-filter-opt="'+a+'"><span class="cb">'+(on?CHECK:'')+'</span><span>'+a+'</span></div>'; }).join("")
+      + '<div class="ms-tools"><button data-agp-filter-all>Select all</button><button data-agp-filter-clear>Clear</button></div>'
+    + '</div>';
+  }
+  return '<div class="ms"><button class="ms-toggle '+(sel.length===0?'placeholder':'')+'" data-agp-filter-toggle>'+esc(summary)+'</button>'+menu+'</div>';
+}
+function ageSelectHtml(trn){
+  var open=state.agpRowOpen===trn.id;
+  var cur=trn.ageGroup||"Unassigned";
+  var menu="";
+  if(open){
+    menu='<div class="ms-menu">'
+      + AGE_GROUPS.map(function(a){ var on=trn.ageGroup===a; return '<div class="ms-opt '+(on?'sel':'')+'" data-agp-set="'+a+'" data-agp-node="'+trn.id+'"><span class="cb">'+(on?CHECK:'')+'</span><span>'+a+'</span></div>'; }).join("")
+      + '<div class="ms-opt '+(!trn.ageGroup?'sel':'')+'" data-agp-set="" data-agp-node="'+trn.id+'"><span class="cb">'+(!trn.ageGroup?CHECK:'')+'</span><span class="sub-muted">Unassigned</span></div>'
+    + '</div>';
+  }
+  return '<div class="ms agp-age"><button class="ms-toggle '+(trn.ageGroup?'':'placeholder')+'" data-agp-row="'+trn.id+'">'+esc(cur)+'</button>'+menu+'</div>';
+}
+function ageGroupsMainHtml(){
+  var q=state.agpSearch.trim().toLowerCase();
+  var flt=state.agpFilter;
+  var counts={}; AGE_GROUPS.forEach(function(a){counts[a]=0;}); var unassigned=0, totalTrn=0;
+  var sections = sortedChildren(null).map(function(sp){
+    var rows=[];
+    sortedChildren(sp).forEach(function(cat){
+      sortedChildren(cat).forEach(function(trn){
+        if(trn.type!=="tournament") return;
+        totalTrn++; if(trn.ageGroup) counts[trn.ageGroup]=(counts[trn.ageGroup]||0)+1; else unassigned++;
+        if(q && trn.name.toLowerCase().indexOf(q)===-1 && cat.name.toLowerCase().indexOf(q)===-1 && sp.name.toLowerCase().indexOf(q)===-1) return;
+        if(flt.length && flt.indexOf(trn.ageGroup||"")===-1) return;
+        rows.push('<div class="agp-row">'
+          + '<span class="agp-cat"><span class="dim-tag CAT">CAT</span>'+esc(cat.name)+'</span>'
+          + '<span class="agp-name">'+esc(trn.name)+'</span>'
+          + '<span class="agp-spacer"></span>'
+          + ageSelectHtml(trn)
+        + '</div>');
+      });
+    });
+    if(!rows.length) return "";
+    return '<div class="agp-section"><div class="agp-shead"><span class="dim-tag SPT">SPT</span>'+esc(sp.name)+'<span class="sub-muted"> · '+rows.length+'</span></div>'+rows.join("")+'</div>';
+  }).join("");
+  if(!sections) sections='<div class="empty-state">No tournaments match the current search / filter.</div>';
+
+  return '<div class="panel">'
+    + '<div class="panel-head"><h2>Age Groups</h2><span class="hint">assign an age group to each tournament — used for filtering &amp; bulk actions</span>'
+      + '<span class="spacer"></span>'
+      + '<div class="toolbar">'+agpFilterHtml()+'<input id="agp-search" class="search-box" placeholder="Search…" value="'+esc(state.agpSearch)+'"></div>'
+    + '</div>'
+    + '<div class="panel-body">'
+      + '<div class="info-banner blue">ℹ️ Age groups classify tournaments (e.g. youth or reserve competitions). The assignment here drives the age-group filter in Coverage. '
+        + '<b>'+totalTrn+'</b> tournaments · <b>'+unassigned+'</b> unassigned.</div>'
+      + sections
     + '</div>'
   + '</div>';
 }
@@ -1464,6 +1547,14 @@ root.addEventListener("click", function(e){
   if(t.closest("[data-age-all]")){ state.ageFilters=AGE_GROUPS.slice(); render(); return; }
   if(t.closest("[data-age-clear]")){ state.ageFilters=[]; render(); return; }
 
+  // age-groups page: filter dropdown + per-tournament assignment
+  if(t.closest("[data-agp-filter-toggle]")){ state.agpFilterOpen=!state.agpFilterOpen; state.agpRowOpen=null; render(); return; }
+  var afo=t.closest("[data-agp-filter-opt]"); if(afo){ var afv=afo.getAttribute("data-agp-filter-opt"); var ai=state.agpFilter.indexOf(afv); if(ai===-1)state.agpFilter.push(afv); else state.agpFilter.splice(ai,1); render(); return; }
+  if(t.closest("[data-agp-filter-all]")){ state.agpFilter=AGE_GROUPS.slice(); render(); return; }
+  if(t.closest("[data-agp-filter-clear]")){ state.agpFilter=[]; render(); return; }
+  var arw=t.closest("[data-agp-row]"); if(arw){ var rid=arw.getAttribute("data-agp-row"); state.agpRowOpen=(state.agpRowOpen===rid)?null:rid; state.agpFilterOpen=false; render(); return; }
+  var ast=t.closest("[data-agp-set]"); if(ast){ var an=NODES[ast.getAttribute("data-agp-node")]; var aval=ast.getAttribute("data-agp-set"); an.ageGroup=aval||null; state.agpRowOpen=null; render(); return; }
+
   // market enable/disable toggle (writes to the level node's market rules)
   var msw=t.closest("[data-mkt-key]"); if(msw){ var mn=NODES[msw.getAttribute("data-mkt-node")]; var mk=msw.getAttribute("data-mkt-key"); var mch=msw.getAttribute("data-mkt-ch"); var curOn=effMarket(mn,mk,mch).state==='on'; setMarketChannel(mn,mk,mch,!curOn); render(); return; }
 
@@ -1494,8 +1585,8 @@ root.addEventListener("click", function(e){
   // column row select / drill (before the menu-close catch-all)
   var cr=t.closest("[data-col-row]"); if(cr){ if(t.closest(".spin")) return; selectInColumns(NODES[cr.getAttribute("data-col-row")]); render(); return; }
 
-  // clicking anywhere else closes the age menu
-  if(state.ageMenuOpen){ state.ageMenuOpen=false; render(); return; }
+  // clicking anywhere else closes any open dropdown menus
+  if(state.ageMenuOpen || state.agpFilterOpen || state.agpRowOpen){ state.ageMenuOpen=false; state.agpFilterOpen=false; state.agpRowOpen=null; render(); return; }
 });
 
 root.addEventListener("change", function(e){
@@ -1504,6 +1595,7 @@ root.addEventListener("change", function(e){
 
 root.addEventListener("input", function(e){
   if(e.target.id==="cov-search"){ state.search=e.target.value; render(); return; }
+  if(e.target.id==="agp-search"){ state.agpSearch=e.target.value; render(); return; }
 });
 
 // commit priority typed into a spinner field (coverage node or pick-list)
