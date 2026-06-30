@@ -314,7 +314,10 @@
   .mp-name { flex:1; font-weight:550; font-size:12.5px; }
   .stpl-card { border:1px solid var(--border); border-radius:10px; padding:14px; margin-top:12px; }
   .stpl-head { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
-  .stpl-name { font-weight:650; font-size:14px; }
+  .stpl-name { font-weight:650; font-size:13.5px; }
+  .stpl-list { display:flex; flex-direction:column; gap:8px; }
+  .stpl-row { display:flex; align-items:center; gap:10px; border:1px solid var(--border); border-radius:9px; padding:10px 12px; }
+  .stpl-row.applied { border-color:var(--accent); background:var(--accent-soft); }
   .mc-ch { display:inline-flex; align-items:center; gap:4px; flex-shrink:0; }
   .ch-lbl { font-size:9.5px; font-weight:800; width:11px; text-align:center; flex-shrink:0; }
   .ch-lbl.live { color:var(--live); }
@@ -445,6 +448,7 @@ var PARTNERS = [
 ];
 var PROVIDERS = ["Betradar","BetGenius","LSports","OddsMatrix","TXOdds","Internal Trading","BetConstruct","Stats Perform"];
 var AGE_GROUPS = ["Senior","U23","U21","U19","U17","Women","Youth","Amateur","Reserve"];
+var COUNTRIES = ["Brazil","Nigeria","Germany","United Kingdom","France","Italy","Spain","Portugal","Netherlands","USA","India","Kenya","Ghana","Argentina","Mexico","Turkey"];
 
 /* per-sport market catalogs (key + label) */
 function mk(label){ return {key:label.toLowerCase().replace(/[^a-z0-9]+/g,"_").replace(/^_|_$/g,""), label:label}; }
@@ -763,6 +767,8 @@ var state = {
   agpSportSel: "",           // age-groups page: selected sport (column 1)
   agpCatSel: "",             // age-groups page: selected category (column 2)
   colSearch: {},             // coverage Miller columns: per-column (pkey) search query
+  country: "default",        // coverage: country context for priority ordering ("default" = base)
+  countryMenuOpen: false,
   mtSport: "",               // market-templates page: selected sport
   mtSportOpen: false,        // market-templates page: sport dropdown open
   mtExpanded: null,          // market-templates page: expanded template id
@@ -878,7 +884,8 @@ function columnChain(){
 }
 // items for a column: full order-sorted list + the display list (inherit/search/age applied)
 function columnItems(col){
-  var ordered = col.parent ? sortedChildren(col.parent) : sortedChildren(null);
+  var base = (col.parent ? col.parent.childIds : ROOT_IDS).map(function(id){ return NODES[id]; });
+  var ordered = base.slice().sort(function(a,b){ return getOrd(a)-getOrd(b) || a.name.localeCompare(b.name, undefined, {numeric:true}); });
   var rank={}; ordered.forEach(function(n,i){ rank[n.id]=i+1; });
   var shown = ordered.slice();
   var q=(state.colSearch[col.pkey]||"").trim().toLowerCase();
@@ -903,6 +910,18 @@ function ageFilterHtml(){
   + '</div>';
 }
 
+function countryFilterHtml(){
+  var cur=state.country, label=cur==="default"?"Default":cur;
+  var menu="";
+  if(state.countryMenuOpen){
+    var opts=["default"].concat(COUNTRIES);
+    menu='<div class="ms-menu" style="max-height:320px">'
+      + opts.map(function(c){ var on=c===cur; return '<div class="ms-opt '+(on?'sel':'')+'" data-country-opt="'+esc(c)+'"><span class="cb">'+(on?CHECK:'')+'</span><span'+(c==="default"?' style="font-weight:650"':'')+'>'+(c==="default"?"Default (base priority)":esc(c))+'</span></div>'; }).join("")
+    + '</div>';
+  }
+  return '<div class="ms" style="min-width:160px"><button class="ms-toggle'+(cur==="default"?" placeholder":"")+'" data-country-toggle>🌐 '+esc(label)+'</button>'+menu+'</div>';
+}
+
 function coverageMainHtml(){
   var cols = columnChain();
   var colsHtml = cols.map(function(c){ return mcolHtml(c); }).join("");
@@ -913,10 +932,12 @@ function coverageMainHtml(){
         + '<h2>Coverage</h2><span class="hint">click a row to open its children · toggle L (live) / P (prematch) · drag to reorder</span>'
         + '<span class="spacer"></span>'
         + '<div class="toolbar">'
+          + countryFilterHtml()
           + ageFilterHtml()
         + '</div>'
       + '</div>'
       + '<div class="panel-body" style="padding:12px">'
+        + (state.country!=="default" ? '<div class="info-banner" style="background:var(--warn-soft); border-color:#f0d9a8; color:#8a5a12">🌐 Editing <b>priority order</b> for <b>'+esc(state.country)+'</b> — overrides the Default priority. Enable/disable &amp; market rules remain global.</div>' : '')
         + '<div class="mcols">'+colsHtml+'</div>'
       + '</div>'
     + '</div>'
@@ -1529,25 +1550,30 @@ function settingsModal(node){
       + '<input id="mp-search" class="search-box" style="width:100%; max-width:none; margin-bottom:10px" placeholder="Search markets…" value="'+esc(state.modal.mpq||"")+'">'
       + '<div class="mp-list">'+rows+'</div>';
   } else if(sec==="market-templates"){
-    var applied = node.template ? TEMPLATES[node.template] : null;
+    var spp=sportOf(node), amk=marketsFor(spp), tmpls=templatesForSport(spp);
     var inh=null, pp=node.parentId; while(pp){ if(NODES[pp].template && TEMPLATES[NODES[pp].template]){ inh={node:NODES[pp], t:TEMPLATES[NODES[pp].template]}; break;} pp=NODES[pp].parentId; }
-    content='<div class="info-banner blue">ℹ️ The market template applied directly at this '+node.type+'. Assign templates from the <b>Market Templates</b> tab; here you can review &amp; unassign.</div>';
-    if(applied){
-      var spp=sportOf(node), amk=marketsFor(spp), lc=0,pc=0,ic2=0;
-      amk.forEach(function(m){ var a=tmplAvail(applied,m.key); if(a.live)lc++; if(a.prematch)pc++; if(a.live||a.prematch)ic2++; });
-      content+='<div class="stpl-card"><div class="stpl-head"><span class="dim-tag SPT">'+esc(applied.sport)+'</span><span class="stpl-name">'+esc(applied.name)+'</span>'
-        + '<span class="mt-meta">'+ic2+' markets · <span class="ch-lbl live">'+lc+' L</span> · <span class="ch-lbl pre">'+pc+' P</span></span></div>';
-      if(state.modal.confirmUnassign){
-        content+='<div class="info-banner" style="background:#fdecec; border-color:#f0c0c0; color:var(--neg); margin:12px 0 0">⚠️ Unassign <b>'+esc(applied.name)+'</b> from <b>'+esc(node.name)+'</b>?</div>'
-          + '<div style="display:flex; gap:8px; margin-top:10px"><button class="btn" data-stpl-cancel>Cancel</button><button class="btn" data-stpl-confirm style="background:var(--neg);border-color:var(--neg);color:#fff">Yes, unassign</button></div>';
-      } else {
-        content+='<div style="margin-top:12px"><button class="btn danger" data-stpl-unassign>Unassign template</button></div>';
-      }
-      content+='</div>';
+    content='<div class="info-banner blue">ℹ️ Assign a market template to this '+node.type+'. The applied template is inherited by everything below unless overridden.</div>'
+      + (inh && !node.template ? '<div class="sub-muted" style="margin:-4px 0 10px">Currently inheriting from <b>'+esc(inh.node.name)+'</b>: '+esc(inh.t.name)+'</div>' : '');
+    if(!tmpls.length){
+      content+='<div class="stpl-card" style="text-align:center; color:var(--muted)">No templates exist for '+esc(spp)+' yet. Create one in the <b>Market Templates</b> tab.</div>';
     } else {
-      content+='<div class="stpl-card" style="text-align:center; color:var(--muted)">No template applied directly at this '+node.type+'.'
-        + (inh? ' <div class="sub-muted" style="margin-top:6px">Inherited from <b>'+esc(inh.node.name)+'</b>: '+esc(inh.t.name)+' <span style="opacity:.7">(unassign at that level)</span></div>' : '')
-      + '</div>';
+      content+='<div class="stpl-list">'+tmpls.map(function(tp){
+        var applied=node.template===tp.id, lc=0,pc=0,ic2=0;
+        amk.forEach(function(m){ var a=tmplAvail(tp,m.key); if(a.live)lc++; if(a.prematch)pc++; if(a.live||a.prematch)ic2++; });
+        var ctrl;
+        if(applied){
+          ctrl = state.modal.confirmUnassign
+            ? '<span class="sub-muted">Unassign?</span><button class="btn sm" data-stpl-cancel>No</button><button class="btn sm" data-stpl-confirm style="background:var(--neg);border-color:var(--neg);color:#fff">Yes</button>'
+            : '<span class="eff-badge eff-on">Applied</span><button class="btn sm danger" data-stpl-unassign>Unassign</button>';
+        } else {
+          ctrl = '<button class="btn sm primary" data-stpl-assign="'+tp.id+'">Assign</button>';
+        }
+        return '<div class="stpl-row'+(applied?' applied':'')+'">'
+          + '<span class="stpl-name">'+esc(tp.name)+'</span>'
+          + '<span class="mt-meta">'+ic2+' markets · <span class="ch-lbl live">'+lc+' L</span> · <span class="ch-lbl pre">'+pc+' P</span></span>'
+          + '<span class="spacer"></span>'+ctrl
+        + '</div>';
+      }).join("")+'</div>';
     }
   } else {
     var lbl=SETTINGS_SECTIONS.filter(function(s){return s.k===sec;})[0].label;
@@ -1708,28 +1734,31 @@ function pickerModal(leafType, title, pickedArr, kind){
 var root=document.getElementById("root");
 var modalRoot=document.getElementById("modal-root");
 
+// country-scoped ordering: "default" writes node.order; a country writes node.orderC[country]
+function getOrd(n){ if(state.country!=="default" && n.orderC && n.orderC[state.country]!=null) return n.orderC[state.country]; return n.order; }
+function setOrd(n,v){ if(state.country!=="default"){ if(!n.orderC) n.orderC={}; n.orderC[state.country]=v; } else { n.order=v; } }
 function reorder(node, dir){
-  var sibs = siblings(node).slice().sort(function(a,b){return a.order-b.order;});
+  var sibs = siblings(node).slice().sort(function(a,b){return getOrd(a)-getOrd(b);});
   var i=sibs.indexOf(node), j=dir==="up"?i-1:i+1;
   if(j<0||j>=sibs.length) return;
   sibs.splice(i,1); sibs.splice(j,0,node);
-  sibs.forEach(function(n,k){ n.order=k; });
+  sibs.forEach(function(n,k){ setOrd(n,k); });
 }
 function setOrderPosition(node, pos){
-  var sibs = siblings(node).slice().sort(function(a,b){return a.order-b.order;});
+  var sibs = siblings(node).slice().sort(function(a,b){return getOrd(a)-getOrd(b);});
   var cur=sibs.indexOf(node);
   pos=Math.max(1, Math.min(sibs.length, pos))-1;
   if(pos===cur) return;
   sibs.splice(cur,1); sibs.splice(pos,0,node);
-  sibs.forEach(function(n,k){ n.order=k; });
+  sibs.forEach(function(n,k){ setOrd(n,k); });
 }
 function dropReorder(dragNode, targetNode, after){
   if(!dragNode||!targetNode||dragNode.parentId!==targetNode.parentId||dragNode===targetNode) return;
-  var sibs = siblings(dragNode).slice().sort(function(a,b){return a.order-b.order;});
+  var sibs = siblings(dragNode).slice().sort(function(a,b){return getOrd(a)-getOrd(b);});
   sibs.splice(sibs.indexOf(dragNode),1);
   var ti=sibs.indexOf(targetNode)+(after?1:0);
   sibs.splice(ti,0,dragNode);
-  sibs.forEach(function(n,k){ n.order=k; });
+  sibs.forEach(function(n,k){ setOrd(n,k); });
 }
 
 /* ---- pick-list reordering (PICKED_TOURNAMENTS / PICKED_EVENTS) ---- */
@@ -1770,8 +1799,12 @@ root.addEventListener("click", function(e){
   // pick-list priority arrows
   var ppr=t.closest("[data-pickprio-dir]"); if(ppr){ movePick(ppr.getAttribute("data-pickprio-list"), ppr.getAttribute("data-pickprio-id"), ppr.getAttribute("data-pickprio-dir")); render(); return; }
 
+  // country single-select dropdown
+  if(t.closest("[data-country-toggle]")){ state.countryMenuOpen=!state.countryMenuOpen; state.ageMenuOpen=false; render(); return; }
+  var cop=t.closest("[data-country-opt]"); if(cop){ state.country=cop.getAttribute("data-country-opt"); state.countryMenuOpen=false; render(); return; }
+
   // age multiselect dropdown
-  var atg=t.closest("[data-age-toggle]"); if(atg){ state.ageMenuOpen=!state.ageMenuOpen; render(); return; }
+  var atg=t.closest("[data-age-toggle]"); if(atg){ state.ageMenuOpen=!state.ageMenuOpen; state.countryMenuOpen=false; render(); return; }
   var aop=t.closest("[data-age-opt]"); if(aop){ var av=aop.getAttribute("data-age-opt"); var i=state.ageFilters.indexOf(av); if(i===-1)state.ageFilters.push(av); else state.ageFilters.splice(i,1); render(); return; }
   if(t.closest("[data-age-all]")){ state.ageFilters=AGE_GROUPS.slice(); render(); return; }
   if(t.closest("[data-age-clear]")){ state.ageFilters=[]; render(); return; }
@@ -1828,7 +1861,7 @@ root.addEventListener("click", function(e){
   var cr=t.closest("[data-col-row]"); if(cr){ if(t.closest(".spin")) return; selectInColumns(NODES[cr.getAttribute("data-col-row")]); render(); return; }
 
   // clicking anywhere else closes any open dropdown menus
-  if(state.ageMenuOpen || state.agpFilterOpen || state.agpRowOpen || state.mtSportOpen){ state.ageMenuOpen=false; state.agpFilterOpen=false; state.agpRowOpen=null; state.mtSportOpen=false; render(); return; }
+  if(state.ageMenuOpen || state.countryMenuOpen || state.agpFilterOpen || state.agpRowOpen || state.mtSportOpen){ state.ageMenuOpen=false; state.countryMenuOpen=false; state.agpFilterOpen=false; state.agpRowOpen=null; state.mtSportOpen=false; render(); return; }
 });
 
 root.addEventListener("change", function(e){
@@ -1885,6 +1918,8 @@ modalRoot.addEventListener("click", function(e){
   var mpd=t.closest("[data-mp-dir]"); if(mpd){ moveMarketPrio(NODES[state.modal.nodeId], mpd.getAttribute("data-mp-key"), mpd.getAttribute("data-mp-dir")); render(); return; }
   var mpt=t.closest("[data-mp-toggle]"); if(mpt){ var mpn=NODES[state.modal.nodeId]; var mtk=mpt.getAttribute("data-mp-tkey"); var mtc=mpt.getAttribute("data-mp-tch"); setMarketChannel(mpn, mtk, mtc, !(effMarket(mpn,mtk,mtc).state==='on')); render(); return; }
 
+  // settings: assign template
+  var stas=t.closest("[data-stpl-assign]"); if(stas){ NODES[state.modal.nodeId].template=stas.getAttribute("data-stpl-assign"); state.modal.confirmUnassign=false; render(); return; }
   // settings: unassign template (with confirmation)
   if(t.closest("[data-stpl-unassign]")){ state.modal.confirmUnassign=true; render(); return; }
   if(t.closest("[data-stpl-cancel]")){ state.modal.confirmUnassign=false; render(); return; }
