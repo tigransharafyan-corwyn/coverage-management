@@ -1187,6 +1187,7 @@ function mtCardHtml(t, allMk, showSport){
     + '<input class="mt-name" value="'+esc(t.name)+'" data-mt-rename="'+t.id+'">'
     + '<span class="mt-meta">'+inc+' markets · <span class="ch-lbl live">'+liveCount+' L</span> · <span class="ch-lbl pre">'+preCount+' P</span></span>'
     + '<span class="spacer"></span>'
+    + '<button class="btn sm" data-mt-assign="'+t.id+'">Assign…</button>'
     + '<button class="btn sm danger" data-mt-del="'+t.id+'">Delete</button>'
   + '</div>';
   var grid="";
@@ -1237,6 +1238,59 @@ function marketTemplatesMainHtml(){
   + '</div>';
 }
 
+/* --- new template (create) modal --- */
+function newTemplateModal(){
+  var m=state.modal, sport=m.sport, allMk=marketsFor(sport);
+  var rows=allMk.map(function(mk){ var a=m.avail[mk.key]||{live:false,prematch:false};
+    return '<div class="mt-mrow"><span class="mt-mname">'+esc(mk.label)+'</span>'
+      + '<span class="sw mini '+(a.live?'on':'')+'" data-ch="live" data-nt-toggle="'+mk.key+'" data-nt-ch="live"><span class="track"></span></span>'
+      + '<span class="sw mini '+(a.prematch?'on':'')+'" data-ch="prematch" data-nt-toggle="'+mk.key+'" data-nt-ch="prematch"><span class="track"></span></span>'
+    + '</div>'; }).join("");
+  var body='<div class="info-banner blue">ℹ️ New template for <b>'+esc(sport)+'</b>. Name it, then toggle each market’s Live / Prematch availability.</div>'
+    + '<label class="fld">Template name</label>'
+    + '<input id="nt-name" class="search-box" style="width:100%; max-width:none; margin-bottom:14px" placeholder="'+esc(sport)+' — Premium" value="'+esc(m.name||"")+'">'
+    + '<div class="mt-grid" style="border:1px solid var(--border); border-radius:8px; max-height:42vh; overflow:auto; padding:4px 14px 4px"><div class="mt-grid-head"><span>Market</span><span class="ch-lbl live">Live</span><span class="ch-lbl pre">Prematch</span></div>'+rows+'</div>';
+  return shell('New Market Template', '<span class="dim-tag SPT">'+esc(sport)+'</span> define markets &amp; availability', body,
+    '<button class="btn" id="modal-close">Cancel</button><button class="btn primary" id="nt-save">Save template</button>', true);
+}
+
+/* --- assign template to coverage tree (tournament / event level) --- */
+function assignModal(tmpl){
+  var tid=tmpl.id;
+  var sportNode=sortedChildren(null).filter(function(n){return n.name===tmpl.sport;})[0];
+  var q=(state.modal.q||"").toLowerCase();
+  if(!state.modal.exp) state.modal.exp=new Set();
+  var exp=state.modal.exp;
+  var assignedCount=0;
+  function matches(node){ if(!q) return true; if(node.name.toLowerCase().indexOf(q)!==-1) return true; return node.childIds.some(function(id){return matches(NODES[id]);}); }
+  function row(node, depth){
+    if(!matches(node)) return "";
+    var indent=10+depth*18, open=exp.has(node.id)||!!q, hasKids=node.childIds.length>0&&node.type!=="event";
+    if(node.type==="category"){
+      var h='<div class="pk-row pk-branch" data-asg-exp="'+node.id+'" style="padding-left:'+indent+'px"><span class="pk-tw '+(open?'open':'')+'">'+CHEVRON+'</span><span class="dim-tag CAT">CAT</span><span class="pk-name">'+esc(node.name)+'</span><span class="sub-muted">'+node.childIds.length+'</span></div>';
+      return h + (open? sortedChildren(node).map(function(c){return row(c,depth+1);}).join("") : "");
+    }
+    var assigned=node.template===tid; if(assigned) assignedCount++;
+    var other=(node.template&&node.template!==tid)?TEMPLATES[node.template]:null;
+    var otherTag=other?'<span class="sub-muted">· '+esc(other.name.replace(tmpl.sport+" — ",""))+'</span>':'';
+    var tag=node.type==="tournament"?"TRN":"EVT";
+    var h2='<div class="pk-row pk-leaf'+(assigned?' added':'')+'" style="padding-left:'+indent+'px">'
+      + (hasKids?'<span class="pk-tw '+(open?'open':'')+'" data-asg-exp="'+node.id+'">'+CHEVRON+'</span>':'<span style="width:14px;flex-shrink:0"></span>')
+      + '<span class="pk-box'+(assigned?' on':'')+'" data-asg-toggle="'+node.id+'">'+(assigned?CHECK:'')+'</span>'
+      + '<span class="dim-tag '+tag+'">'+tag+'</span><span class="pk-name">'+esc(node.name)+'</span>'+otherTag
+    + '</div>';
+    return h2 + ((open&&hasKids)? sortedChildren(node).map(function(c){return row(c,depth+1);}).join("") : "");
+  }
+  var tree=sportNode? sortedChildren(sportNode).map(function(c){return row(c,0);}).join("") : "";
+  // count total assigned across this sport (recompute fully, since render above only counts shown)
+  var total=0; (function walk(n){ n.childIds.forEach(function(id){ var c=NODES[id]; if((c.type==="tournament"||c.type==="event")&&c.template===tid) total++; walk(c); }); })(sportNode);
+  var body='<div class="info-banner blue">ℹ️ Tick the <b>tournaments</b> or <b>events</b> to apply <b>'+esc(tmpl.name)+'</b>. A node can hold one template — ticking replaces any existing one.</div>'
+    + '<input class="search-box" id="asg-search" placeholder="Search the tree…" value="'+esc(state.modal.q||"")+'" style="width:100%; max-width:none; margin-bottom:12px">'
+    + '<div class="pk-tree">'+(tree||'<div class="sub-muted" style="padding:10px">No matches.</div>')+'</div>';
+  return shell('Assign Template — '+esc(tmpl.name), '<span class="dim-tag SPT">'+esc(tmpl.sport)+'</span> tournament / event level', body,
+    '<span class="sub-muted spacer">'+total+' assigned</span><button class="btn primary" id="modal-close">Done</button>', true);
+}
+
 /* ============================================================
    MODALS
    ============================================================ */
@@ -1249,6 +1303,8 @@ function modalHtml(){
     case "templates": return templatesModal(NODES[m.nodeId]);
     case "age": return ageModal(NODES[m.nodeId]);
     case "settings": return settingsModal(NODES[m.nodeId]);
+    case "new-template": return newTemplateModal();
+    case "assign": return assignModal(TEMPLATES[m.templateId]);
     case "disabled-summary": return disabledSummaryModal();
     case "add-picked-trn": return pickerModal("tournament","Add Picked Tournaments", PICKED_TOURNAMENTS, "trn");
     default: return "";
@@ -1674,7 +1730,8 @@ root.addEventListener("click", function(e){
   // market-templates page
   if(t.closest("[data-mt-sport-toggle]")){ state.mtSportOpen=!state.mtSportOpen; render(); return; }
   var mts=t.closest("[data-mt-sport]"); if(mts){ state.mtSport=mts.getAttribute("data-mt-sport"); state.mtSportOpen=false; state.mtExpanded=null; render(); return; }
-  if(t.closest("[data-mt-new]")){ if(state.mtSport==="__all__")return; var nid=newTemplate(state.mtSport); state.mtExpanded=nid; render(); return; }
+  if(t.closest("[data-mt-new]")){ if(state.mtSport==="__all__")return; state.modal={type:"new-template", sport:state.mtSport, name:"", avail:{}}; render(); return; }
+  var mtasg=t.closest("[data-mt-assign]"); if(mtasg){ state.modal={type:"assign", templateId:mtasg.getAttribute("data-mt-assign"), exp:new Set(), q:""}; render(); return; }
   var mtdel=t.closest("[data-mt-del]"); if(mtdel){ e.stopPropagation(); deleteTemplate(mtdel.getAttribute("data-mt-del")); render(); return; }
   var mtt=t.closest("[data-mt-toggle]"); if(mtt){ var tt=TEMPLATES[mtt.getAttribute("data-mt-toggle")]; var mk=mtt.getAttribute("data-mt-key"); var mch=mtt.getAttribute("data-mt-ch"); setTmplAvail(tt, mk, mch, !tmplAvail(tt,mk)[mch]); render(); return; }
   if(t.closest("[data-mt-rename]")){ return; }   // clicking the name input shouldn't toggle expand
@@ -1767,6 +1824,14 @@ modalRoot.addEventListener("click", function(e){
   var ss=t.closest("[data-settings-section]"); if(ss){ state.modal.section=ss.getAttribute("data-settings-section"); render(); return; }
   var mpd=t.closest("[data-mp-dir]"); if(mpd){ moveMarketPrio(NODES[state.modal.nodeId], mpd.getAttribute("data-mp-key"), mpd.getAttribute("data-mp-dir")); render(); return; }
 
+  // new-template modal: market availability toggles + save
+  var ntt=t.closest("[data-nt-toggle]"); if(ntt){ var nk=ntt.getAttribute("data-nt-toggle"), nch=ntt.getAttribute("data-nt-ch"); if(!state.modal.avail[nk])state.modal.avail[nk]={live:false,prematch:false}; state.modal.avail[nk][nch]=!state.modal.avail[nk][nch]; render(); return; }
+  if(t.id==="nt-save"){ var sp=state.modal.sport; var nm=(state.modal.name||"").trim()||(sp+" — New template"); var id=newTemplate(sp); var tt=TEMPLATES[id]; tt.name=nm; tt.avail=JSON.parse(JSON.stringify(state.modal.avail||{})); syncTmplMarkets(tt); state.mtSport=sp; state.mtExpanded=id; state.modal=null; render(); return; }
+
+  // assign modal: expand + toggle assignment
+  var ax=t.closest("[data-asg-exp]"); if(ax){ var axid=ax.getAttribute("data-asg-exp"); if(state.modal.exp.has(axid))state.modal.exp.delete(axid); else state.modal.exp.add(axid); render(); return; }
+  var at=t.closest("[data-asg-toggle]"); if(at){ var an=NODES[at.getAttribute("data-asg-toggle")]; an.template=(an.template===state.modal.templateId)?null:state.modal.templateId; render(); return; }
+
   // disabled-summary filters
   var sk=t.closest("[data-sum-kind]"); if(sk){ state.summaryFilters.kind=sk.getAttribute("data-sum-kind"); render(); return; }
   var sc=t.closest("[data-sum-ch]"); if(sc){ state.summaryFilters.channel=sc.getAttribute("data-sum-ch"); render(); return; }
@@ -1798,6 +1863,8 @@ modalRoot.addEventListener("click", function(e){
 });
 modalRoot.addEventListener("input", function(e){
   if(e.target.id==="picker-search"){ state.modal.q=e.target.value; render(); var el=document.getElementById("picker-search"); if(el){el.focus(); var v=el.value; el.setSelectionRange(v.length,v.length);} return; }
+  if(e.target.id==="asg-search"){ state.modal.q=e.target.value; render(); var ela=document.getElementById("asg-search"); if(ela){ela.focus(); var va=ela.value; ela.setSelectionRange(va.length,va.length);} return; }
+  if(e.target.id==="nt-name"){ state.modal.name=e.target.value; return; }
   if(e.target.id==="sum-search"){ state.summaryFilters.q=e.target.value; render(); return; }
 });
 modalRoot.addEventListener("change", function(e){
