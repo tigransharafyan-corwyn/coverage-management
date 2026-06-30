@@ -292,6 +292,7 @@
   .mcol-row.dragging { opacity:.4; }
   .mcol-row.dim .mc-name { color:var(--muted); }
   .mc-main { flex:1; min-width:0; display:flex; align-items:center; gap:7px; }
+  .mc-ic { font-size:15px; line-height:1; flex-shrink:0; width:20px; text-align:center; }
   .mc-name { flex:0 1 auto; font-weight:550; font-size:12.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .mc-cnt { color:var(--muted); font-size:11px; font-weight:600; flex-shrink:0; }
   .mc-chev { color:var(--muted); width:14px; height:14px; display:inline-flex; flex-shrink:0; }
@@ -712,6 +713,24 @@ function reorderGroup(sport, id, dir){ var a=groupsForSport(sport); var ids=a.ma
 function setGroupPos(sport, id, pos){ var a=groupsForSport(sport); var ids=a.map(function(g){return g.id;}); var i=ids.indexOf(id); pos=Math.max(1,Math.min(a.length,pos))-1; a.splice(i,1); a.splice(pos,0,MARKET_GROUPS[id]); a.forEach(function(g,k){ g.order=k; }); }
 function dropGroup(sport, dragId, targetId, after){ if(dragId===targetId)return; var a=groupsForSport(sport); a.splice(a.map(function(g){return g.id;}).indexOf(dragId),1); var ti=a.map(function(g){return g.id;}).indexOf(targetId)+(after?1:0); a.splice(ti,0,MARKET_GROUPS[dragId]); a.forEach(function(g,k){ g.order=k; }); }
 
+/* ----------------------------- Sport icons & country flags ----------------------------- */
+var SPORT_ICON = {
+  "Football":"⚽","Basketball":"🏀","Tennis":"🎾","Ice Hockey":"🏒","Baseball":"⚾","American Football":"🏈",
+  "Volleyball":"🏐","Handball":"🤾","Rugby":"🏉","MMA":"🥋","Boxing":"🥊","eSports":"🎮","Cricket":"🏏",
+  "Darts":"🎯","Snooker":"🎱","Table Tennis":"🏓","Badminton":"🏸","Futsal":"🥅","Water Polo":"🤽",
+  "Formula 1":"🏎️","Cycling":"🚴","Golf":"⛳","Beach Volleyball":"🏖️"
+};
+var COUNTRY_FLAG = {
+  "England":"🏴󠁧󠁢󠁥󠁮󠁧󠁿","Spain":"🇪🇸","Italy":"🇮🇹","Germany":"🇩🇪","France":"🇫🇷","Brazil":"🇧🇷","Netherlands":"🇳🇱",
+  "Portugal":"🇵🇹","USA":"🇺🇸","Sweden":"🇸🇪","Finland":"🇫🇮","Russia":"🇷🇺","Czechia":"🇨🇿","Japan":"🇯🇵",
+  "Korea":"🇰🇷","Poland":"🇵🇱","India":"🇮🇳","Australia":"🇦🇺","Hungary":"🇭🇺","Europe":"🇪🇺","International":"🌍","World":"🌍"
+};
+function iconFor(node){
+  if(node.type==="sport") return SPORT_ICON[node.name] || "🎲";
+  if(node.type==="category") return COUNTRY_FLAG[node.name] || SPORT_ICON[node.sport] || "🌐";
+  return "";
+}
+
 /* ----------------------------- Picked tournaments / events (mock) ----------------------------- */
 function allOfType(type){ return Object.keys(NODES).map(function(k){return NODES[k];}).filter(function(n){return n.type===type;}); }
 var allTournaments = allOfType("tournament");
@@ -1062,7 +1081,7 @@ function mcRowHtml(node, col, no, total, isSel){
   return '<div class="mcol-row'+(isSel?' sel':'')+(dimmed?' dim':'')+'" data-col-row="'+node.id+'" data-pkey="'+col.pkey+'" draggable="true" data-drag-node="'+node.id+'">'
     + '<span class="drag" title="Drag to reorder">⠿</span>'
     + spinnerHtml(node, no, total, false)
-    + '<span class="mc-main"><span class="mc-name" title="'+esc(node.name)+'">'+esc(node.name)+'</span>'
+    + '<span class="mc-main">'+(iconFor(node)?'<span class="mc-ic">'+iconFor(node)+'</span>':'')+'<span class="mc-name" title="'+esc(node.name)+'">'+esc(node.name)+'</span>'
       + (hasKids?'<span class="mc-cnt">'+node.childIds.length+'</span>':'')
       + liveBadge
     + '</span>'
@@ -1215,7 +1234,7 @@ function agpColHtml(label, count, rowsHtml){
 }
 function agpNavRow(node, sel, attr){
   return '<div class="mcol-row'+(sel?' sel':'')+'" data-'+attr+'="'+node.id+'">'
-    + '<span class="mc-main"><span class="mc-name">'+esc(node.name)+'</span><span class="mc-cnt">'+node.childIds.length+'</span></span>'
+    + '<span class="mc-main">'+(iconFor(node)?'<span class="mc-ic">'+iconFor(node)+'</span>':'')+'<span class="mc-name">'+esc(node.name)+'</span><span class="mc-cnt">'+node.childIds.length+'</span></span>'
     + '<span class="mc-chev">'+CHEVRON+'</span>'
   + '</div>';
 }
