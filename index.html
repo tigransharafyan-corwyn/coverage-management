@@ -1582,8 +1582,7 @@ function providerEditorBody(node){
   var avail = PROVIDERS.filter(function(pr){ return list.indexOf(pr)===-1; });
   var addSel = '<select class="input" id="prov-add-sel" style="min-width:200px"><option value="">Add provider…</option>'
     + avail.map(function(pr){ return '<option value="'+esc(pr)+'">'+esc(pr)+'</option>'; }).join("") + '</select>';
-  return '<div class="info-banner blue">ℹ️ Provider priority is set per <b>partner</b> and per <b>level</b>. Lower numbers win; deeper levels override inherited priority. Currently editing <b>'+esc(partnerName(partner))+'</b>.</div>'
-    + (inh? '<div class="sub-muted" style="margin-bottom:10px">Inherited from <b>'+esc(inh.node.name)+'</b>: '+inh.list.map(function(x,i){return (i+1)+'. '+esc(x);}).join(" · ")+'</div>':'')
+  return (inh? '<div class="sub-muted" style="margin-bottom:10px">Inherited from <b>'+esc(inh.node.name)+'</b>: '+inh.list.map(function(x,i){return (i+1)+'. '+esc(x);}).join(" · ")+'</div>':'')
     + rows
     + '<div style="display:flex; gap:8px; margin-top:10px">'+addSel+'<button class="btn" id="prov-add-btn">Add</button></div>';
 }
