@@ -441,6 +441,8 @@
   .ms-opt .ms-radio { width:15px; height:15px; border:1.5px solid var(--border-strong); border-radius:50%; flex-shrink:0; position:relative; }
   .ms-opt .ms-radio.on { border-color:var(--accent); }
   .ms-opt .ms-radio.on:after { content:""; position:absolute; top:3px; left:3px; width:7px; height:7px; border-radius:50%; background:var(--accent); }
+  .ms-opt.ms-plain.sel { background:var(--accent-soft); color:var(--accent); font-weight:600; }
+  .ms-opt.ms-plain.sel:after { content:"✓"; margin-left:auto; color:var(--accent); font-weight:700; }
   .ms-tools { display:flex; justify-content:space-between; padding:5px 6px 2px; border-top:1px solid var(--border); margin-top:5px; }
   .ms-tools button { background:none; border:none; color:var(--accent); cursor:pointer; font-size:11.5px; font-weight:600; padding:2px 4px; }
 
@@ -1005,7 +1007,7 @@ function countryFilterHtml(){
   if(state.countryMenuOpen){
     var opts=["default"].concat(COUNTRIES);
     menu='<div class="ms-menu" style="max-height:320px">'
-      + opts.map(function(c){ var on=c===cur; return '<div class="ms-opt '+(on?'sel':'')+'" data-country-opt="'+esc(c)+'"><span class="ms-radio'+(on?' on':'')+'"></span><span'+(c==="default"?' style="font-weight:650"':'')+'>'+(c==="default"?"Default (base priority)":esc(c))+'</span></div>'; }).join("")
+      + opts.map(function(c){ var on=c===cur; return '<div class="ms-opt ms-plain '+(on?'sel':'')+'" data-country-opt="'+esc(c)+'"><span>'+(c==="default"?"Default (base priority)":esc(c))+'</span></div>'; }).join("")
     + '</div>';
   }
   return '<div class="ms" style="min-width:160px"><button class="ms-toggle'+(cur==="default"?" placeholder":"")+'" data-country-toggle>🌐 '+esc(label)+'</button>'+menu+'</div>';
@@ -1245,8 +1247,8 @@ function ageSelectHtml(trn){
   var menu="";
   if(open){
     menu='<div class="ms-menu">'
-      + AGE_GROUPS.map(function(a){ var on=trn.ageGroup===a; return '<div class="ms-opt '+(on?'sel':'')+'" data-agp-set="'+a+'" data-agp-node="'+trn.id+'"><span class="cb">'+(on?CHECK:'')+'</span><span>'+a+'</span></div>'; }).join("")
-      + '<div class="ms-opt '+(!trn.ageGroup?'sel':'')+'" data-agp-set="" data-agp-node="'+trn.id+'"><span class="cb">'+(!trn.ageGroup?CHECK:'')+'</span><span class="sub-muted">Unassigned</span></div>'
+      + AGE_GROUPS.map(function(a){ var on=trn.ageGroup===a; return '<div class="ms-opt ms-plain '+(on?'sel':'')+'" data-agp-set="'+a+'" data-agp-node="'+trn.id+'"><span>'+a+'</span></div>'; }).join("")
+      + '<div class="ms-opt ms-plain '+(!trn.ageGroup?'sel':'')+'" data-agp-set="" data-agp-node="'+trn.id+'"><span class="sub-muted">Unassigned</span></div>'
     + '</div>';
   }
   return '<div class="ms agp-age"><button class="ms-toggle '+(trn.ageGroup?'':'placeholder')+'" data-agp-row="'+trn.id+'">'+esc(cur)+'</button>'+menu+'</div>';
@@ -1738,8 +1740,7 @@ function settingsModal(node){
         + '</span>'
       + '</div>';
     }).join("") : '<div class="sub-muted" style="padding:14px; text-align:center">No markets match “'+esc(state.modal.mpq||"")+'”.</div>';
-    content='<div class="info-banner blue">ℹ️ Order markets (drag or set a priority) and toggle each market’s <b>Live</b> / <b>Prematch</b> availability for this '+node.type+'. Inherited by everything below unless overridden.</div>'
-      + '<input id="mp-search" class="search-box" style="width:100%; max-width:none; margin-bottom:10px" placeholder="Search markets…" value="'+esc(state.modal.mpq||"")+'">'
+    content='<input id="mp-search" class="search-box" style="width:100%; max-width:none; margin-bottom:10px" placeholder="Search markets…" value="'+esc(state.modal.mpq||"")+'">'
       + '<div class="mp-list">'+rows+'</div>';
   } else if(sec==="market-templates"){
     var spp=sportOf(node), amk=marketsFor(spp), tmpls=templatesForSport(spp);
