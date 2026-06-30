@@ -1291,6 +1291,28 @@ function assignModal(tmpl){
     '<span class="sub-muted spacer">'+total+' assigned</span><button class="btn primary" id="modal-close">Done</button>', true);
 }
 
+/* --- delete template confirmation (guards against losing assignments) --- */
+function deleteTemplateModal(tmpl){
+  var tid=tmpl.id;
+  var assigned=[]; Object.keys(NODES).forEach(function(k){ if(NODES[k].template===tid) assigned.push(NODES[k]); });
+  var show=state.modal.showAssignments;
+  var n=assigned.length;
+  var body;
+  if(n){
+    body='<div class="info-banner" style="background:#fdecec; border-color:#f0c0c0; color:var(--neg)">⚠️ <b>'+esc(tmpl.name)+'</b> is currently assigned to <b>'+n+'</b> '+(n===1?'place':'places')+'. Deleting it will remove '+(n===1?'that assignment':'those assignments')+'.</div>'
+      + '<button class="btn sm" data-del-show>'+(show?'Hide assignments':'Show where it’s assigned')+'</button>'
+      + (show? '<div style="margin-top:10px; max-height:40vh; overflow:auto; border:1px solid var(--border); border-radius:8px; padding:6px">'
+          + assigned.map(function(nd){ return '<div class="summary-item"><span class="dim-tag '+LEVEL_TAG[nd.type]+'">'+LEVEL_TAG[nd.type]+'</span><b>'+esc(nd.name)+'</b><span class="spacer"></span><span class="ppath">'+esc(pathLabel(nd))+'</span></div>'; }).join("")
+        + '</div>' : '');
+  } else {
+    body='<div class="info-banner blue">This template has no assignments — it can be safely deleted.</div>';
+  }
+  var confirmLabel = n ? ('Delete &amp; remove '+n+' assignment'+(n===1?'':'s')) : 'Delete template';
+  var foot='<button class="btn" id="modal-close">Cancel</button>'
+    + '<button class="btn" data-del-confirm="'+tid+'" style="background:var(--neg); border-color:var(--neg); color:#fff">'+confirmLabel+'</button>';
+  return shell('Delete Template — '+esc(tmpl.name), '<span class="dim-tag SPT">'+esc(tmpl.sport)+'</span> confirm deletion', body, foot, n>0);
+}
+
 /* ============================================================
    MODALS
    ============================================================ */
@@ -1305,6 +1327,7 @@ function modalHtml(){
     case "settings": return settingsModal(NODES[m.nodeId]);
     case "new-template": return newTemplateModal();
     case "assign": return assignModal(TEMPLATES[m.templateId]);
+    case "delete-template": return deleteTemplateModal(TEMPLATES[m.templateId]);
     case "disabled-summary": return disabledSummaryModal();
     case "add-picked-trn": return pickerModal("tournament","Add Picked Tournaments", PICKED_TOURNAMENTS, "trn");
     default: return "";
@@ -1732,7 +1755,7 @@ root.addEventListener("click", function(e){
   var mts=t.closest("[data-mt-sport]"); if(mts){ state.mtSport=mts.getAttribute("data-mt-sport"); state.mtSportOpen=false; state.mtExpanded=null; render(); return; }
   if(t.closest("[data-mt-new]")){ if(state.mtSport==="__all__")return; state.modal={type:"new-template", sport:state.mtSport, name:"", avail:{}}; render(); return; }
   var mtasg=t.closest("[data-mt-assign]"); if(mtasg){ state.modal={type:"assign", templateId:mtasg.getAttribute("data-mt-assign"), exp:new Set(), q:""}; render(); return; }
-  var mtdel=t.closest("[data-mt-del]"); if(mtdel){ e.stopPropagation(); deleteTemplate(mtdel.getAttribute("data-mt-del")); render(); return; }
+  var mtdel=t.closest("[data-mt-del]"); if(mtdel){ e.stopPropagation(); state.modal={type:"delete-template", templateId:mtdel.getAttribute("data-mt-del"), showAssignments:false}; render(); return; }
   var mtt=t.closest("[data-mt-toggle]"); if(mtt){ var tt=TEMPLATES[mtt.getAttribute("data-mt-toggle")]; var mk=mtt.getAttribute("data-mt-key"); var mch=mtt.getAttribute("data-mt-ch"); setTmplAvail(tt, mk, mch, !tmplAvail(tt,mk)[mch]); render(); return; }
   if(t.closest("[data-mt-rename]")){ return; }   // clicking the name input shouldn't toggle expand
   var mte=t.closest("[data-mt-expand]"); if(mte){ var teid=mte.getAttribute("data-mt-expand"); state.mtExpanded=(state.mtExpanded===teid)?null:teid; render(); return; }
@@ -1831,6 +1854,10 @@ modalRoot.addEventListener("click", function(e){
   // assign modal: expand + toggle assignment
   var ax=t.closest("[data-asg-exp]"); if(ax){ var axid=ax.getAttribute("data-asg-exp"); if(state.modal.exp.has(axid))state.modal.exp.delete(axid); else state.modal.exp.add(axid); render(); return; }
   var at=t.closest("[data-asg-toggle]"); if(at){ var an=NODES[at.getAttribute("data-asg-toggle")]; an.template=(an.template===state.modal.templateId)?null:state.modal.templateId; render(); return; }
+
+  // delete-template confirmation
+  if(t.closest("[data-del-show]")){ state.modal.showAssignments=!state.modal.showAssignments; render(); return; }
+  var dc=t.closest("[data-del-confirm]"); if(dc){ deleteTemplate(dc.getAttribute("data-del-confirm")); state.modal=null; render(); return; }
 
   // disabled-summary filters
   var sk=t.closest("[data-sum-kind]"); if(sk){ state.summaryFilters.kind=sk.getAttribute("data-sum-kind"); render(); return; }
