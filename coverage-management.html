@@ -312,6 +312,9 @@
   .mp-row:hover { background:var(--row-hover); }
   .mp-row.dragging { opacity:.4; }
   .mp-name { flex:1; font-weight:550; font-size:12.5px; }
+  .stpl-card { border:1px solid var(--border); border-radius:10px; padding:14px; margin-top:12px; }
+  .stpl-head { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .stpl-name { font-weight:650; font-size:14px; }
   .mc-ch { display:inline-flex; align-items:center; gap:4px; flex-shrink:0; }
   .ch-lbl { font-size:9.5px; font-weight:800; width:11px; text-align:center; flex-shrink:0; }
   .ch-lbl.live { color:var(--live); }
@@ -997,7 +1000,7 @@ function mcRowHtml(node, col, no, total, isSel){
       + liveBadge
     + '</span>'
     + chans
-    + ((node.type==="sport"||node.type==="tournament")?'<button class="row-gear" data-settings="'+node.id+'" title="Settings">'+GEAR+'</button>':'')
+    + ((node.type==="sport"||node.type==="tournament"||node.type==="event")?'<button class="row-gear" data-settings="'+node.id+'" title="Settings">'+GEAR+'</button>':'')
     + (hasKids?'<span class="mc-chev">'+CHEVRON+'</span>':'<span style="width:14px"></span>')
   + '</div>';
 }
@@ -1493,7 +1496,8 @@ function setMarketPrioPos(node, key, pos){ var a=marketOrderKeys(node); var i=a.
 function dropMarketPrio(node, dragKey, targetKey, after){ if(dragKey===targetKey)return; var a=marketOrderKeys(node); a.splice(a.indexOf(dragKey),1); var ti=a.indexOf(targetKey)+(after?1:0); a.splice(ti,0,dragKey); }
 
 var SETTINGS_SECTIONS=[
-  {k:"market-priority", ic:"↑", label:"Market priority"}
+  {k:"market-priority", ic:"↑", label:"Market priority"},
+  {k:"market-templates", ic:"◳", label:"Market templates"}
 ];
 function settingsModal(node){
   var sec=state.modal.section||"market-priority";
@@ -1516,6 +1520,27 @@ function settingsModal(node){
     }).join("");
     content='<div class="info-banner blue">ℹ️ Order in which markets are shown to players for this '+node.type+'. Drag the handle or set a priority number. Inherited by everything below unless overridden.</div>'
       + '<div class="mp-list">'+rows+'</div>';
+  } else if(sec==="market-templates"){
+    var applied = node.template ? TEMPLATES[node.template] : null;
+    var inh=null, pp=node.parentId; while(pp){ if(NODES[pp].template && TEMPLATES[NODES[pp].template]){ inh={node:NODES[pp], t:TEMPLATES[NODES[pp].template]}; break;} pp=NODES[pp].parentId; }
+    content='<div class="info-banner blue">ℹ️ The market template applied directly at this '+node.type+'. Assign templates from the <b>Market Templates</b> tab; here you can review &amp; unassign.</div>';
+    if(applied){
+      var spp=sportOf(node), amk=marketsFor(spp), lc=0,pc=0,ic2=0;
+      amk.forEach(function(m){ var a=tmplAvail(applied,m.key); if(a.live)lc++; if(a.prematch)pc++; if(a.live||a.prematch)ic2++; });
+      content+='<div class="stpl-card"><div class="stpl-head"><span class="dim-tag SPT">'+esc(applied.sport)+'</span><span class="stpl-name">'+esc(applied.name)+'</span>'
+        + '<span class="mt-meta">'+ic2+' markets · <span class="ch-lbl live">'+lc+' L</span> · <span class="ch-lbl pre">'+pc+' P</span></span></div>';
+      if(state.modal.confirmUnassign){
+        content+='<div class="info-banner" style="background:#fdecec; border-color:#f0c0c0; color:var(--neg); margin:12px 0 0">⚠️ Unassign <b>'+esc(applied.name)+'</b> from <b>'+esc(node.name)+'</b>?</div>'
+          + '<div style="display:flex; gap:8px; margin-top:10px"><button class="btn" data-stpl-cancel>Cancel</button><button class="btn" data-stpl-confirm style="background:var(--neg);border-color:var(--neg);color:#fff">Yes, unassign</button></div>';
+      } else {
+        content+='<div style="margin-top:12px"><button class="btn danger" data-stpl-unassign>Unassign template</button></div>';
+      }
+      content+='</div>';
+    } else {
+      content+='<div class="stpl-card" style="text-align:center; color:var(--muted)">No template applied directly at this '+node.type+'.'
+        + (inh? ' <div class="sub-muted" style="margin-top:6px">Inherited from <b>'+esc(inh.node.name)+'</b>: '+esc(inh.t.name)+' <span style="opacity:.7">(unassign at that level)</span></div>' : '')
+      + '</div>';
+    }
   } else {
     var lbl=SETTINGS_SECTIONS.filter(function(s){return s.k===sec;})[0].label;
     content='<div class="empty-state">“'+esc(lbl)+'” — placeholder section in this prototype.</div>';
@@ -1848,8 +1873,13 @@ modalRoot.addEventListener("click", function(e){
   var pa=t.closest("[data-pick-add]"); if(pa){ var aid=pa.getAttribute("data-pick-add"), akind=pa.getAttribute("data-pick-kind"); var arr=akind==="trn"?PICKED_TOURNAMENTS:PICKED_EVENTS; if(arr.indexOf(aid)===-1)arr.push(aid); render(); return; }
 
   // settings: section switch + market-priority arrows
-  var ss=t.closest("[data-settings-section]"); if(ss){ state.modal.section=ss.getAttribute("data-settings-section"); render(); return; }
+  var ss=t.closest("[data-settings-section]"); if(ss){ state.modal.section=ss.getAttribute("data-settings-section"); state.modal.confirmUnassign=false; render(); return; }
   var mpd=t.closest("[data-mp-dir]"); if(mpd){ moveMarketPrio(NODES[state.modal.nodeId], mpd.getAttribute("data-mp-key"), mpd.getAttribute("data-mp-dir")); render(); return; }
+
+  // settings: unassign template (with confirmation)
+  if(t.closest("[data-stpl-unassign]")){ state.modal.confirmUnassign=true; render(); return; }
+  if(t.closest("[data-stpl-cancel]")){ state.modal.confirmUnassign=false; render(); return; }
+  if(t.closest("[data-stpl-confirm]")){ NODES[state.modal.nodeId].template=null; state.modal.confirmUnassign=false; render(); return; }
 
   // template form modal: market toggles, bulk enable/disable, save
   var ntt=t.closest("[data-nt-toggle]"); if(ntt){ var nk=ntt.getAttribute("data-nt-toggle"), nch=ntt.getAttribute("data-nt-ch"); if(!state.modal.avail[nk])state.modal.avail[nk]={live:false,prematch:false}; state.modal.avail[nk][nch]=!state.modal.avail[nk][nch]; render(); return; }
