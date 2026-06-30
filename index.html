@@ -319,6 +319,11 @@
   .stpl-list { display:flex; flex-direction:column; gap:8px; }
   .stpl-row { display:flex; align-items:center; gap:10px; border:1px solid var(--border); border-radius:9px; padding:10px 12px; }
   .stpl-row.applied { border-color:var(--accent); background:var(--accent-soft); }
+  .stpl-status { display:flex; align-items:center; gap:10px; padding:12px 14px; border-radius:10px; margin-bottom:16px; font-size:13px; }
+  .stpl-status.assigned { background:var(--accent-soft); border:1px solid var(--accent); }
+  .stpl-status.none { background:#f8fafc; border:1px dashed var(--border-strong); color:var(--text); }
+  .stpl-status .stpl-none-ic { font-size:18px; color:var(--muted); width:22px; text-align:center; flex-shrink:0; }
+  .stpl-choose-label { font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.4px; color:var(--muted); margin:4px 0 8px; }
   .mc-ch { display:inline-flex; align-items:center; gap:4px; flex-shrink:0; }
   .ch-lbl { font-size:9.5px; font-weight:800; width:11px; text-align:center; flex-shrink:0; }
   .ch-lbl.live { color:var(--live); }
@@ -378,14 +383,21 @@
   .nt-bulk { display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-bottom:10px; }
   .nt-bulk .ch-lbl { width:auto; }
 
-  /* market groups */
-  .mg-card { border:1px solid var(--border); border-radius:10px; margin-bottom:10px; }
-  .mg-head { display:flex; align-items:center; gap:10px; padding:10px 12px; border-bottom:1px solid var(--border); }
-  .mg-name { border:1px solid transparent; background:transparent; font-size:13.5px; font-weight:650; color:var(--text); border-radius:6px; padding:4px 7px; font-family:inherit; min-width:200px; }
+  /* market groups — table */
+  .mg-table { width:100%; border-collapse:collapse; }
+  .mg-table thead th { text-align:left; font-size:10.5px; text-transform:uppercase; letter-spacing:.4px; color:var(--muted); font-weight:650; padding:8px 12px; border-bottom:1px solid var(--border-strong); white-space:nowrap; }
+  .mg-table td { padding:10px 12px; border-bottom:1px solid var(--border); vertical-align:middle; }
+  .mg-table tbody tr:hover td { background:var(--row-hover); }
+  .mg-table .mg-c-pri { width:118px; }
+  .mg-table .mg-c-cnt { width:70px; text-align:center; color:var(--muted); font-variant-numeric:tabular-nums; }
+  .mg-table th.mg-c-cnt { text-align:center; }
+  .mg-table .mg-c-act { width:84px; text-align:right; white-space:nowrap; }
+  .mg-pri-wrap { display:flex; align-items:center; gap:8px; }
+  .mg-name { border:1px solid transparent; background:transparent; font-size:13.5px; font-weight:650; color:var(--text); border-radius:6px; padding:5px 8px; font-family:inherit; width:100%; min-width:140px; }
   .mg-name:hover { border-color:var(--border-strong); }
   .mg-name:focus { outline:none; border-color:var(--accent); background:#fff; }
+  .mg-chips { display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
   .mg-add { position:relative; }
-  .mg-body { padding:10px 12px; display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
   .mg-chip { display:inline-flex; align-items:center; gap:6px; background:#eef2f7; border-radius:7px; padding:4px 8px; font-size:12px; font-weight:550; }
   .mg-chip .mg-x { cursor:pointer; color:var(--muted); font-weight:700; }
   .mg-chip .mg-x:hover { color:var(--neg); }
@@ -1327,35 +1339,34 @@ function marketTemplatesMainHtml(){
 }
 
 /* ---------- market groups view: create groups, prioritize, add markets ---------- */
-function mgGroupCardHtml(g, no, total, sport, allMk){
+function mgGroupRowHtml(g, no, total, sport, allMk){
   var inSet={}; g.markets.forEach(function(k){ inSet[k]=true; });
   var chips = g.markets.length
     ? g.markets.map(function(k){ return '<span class="mg-chip">'+esc(marketLabelFor(sport,k))+'<span class="mg-x" data-mg-rm-group="'+g.id+'" data-mg-rm-key="'+k+'" title="Remove">×</span></span>'; }).join("")
-    : '<span class="sub-muted">No markets in this group yet.</span>';
+    : '<span class="sub-muted">No markets yet.</span>';
   var avail = allMk.filter(function(m){ return !inSet[m.key]; });
   var addOpen = state.mgAddOpen===g.id;
   var aq=(state.mgAddQ||"").toLowerCase();
   var availShown = aq? avail.filter(function(m){ return m.label.toLowerCase().indexOf(aq)!==-1; }) : avail;
   var addMenu = addOpen
-    ? '<div class="ms-menu" style="left:auto; right:0; min-width:260px; max-height:280px">'
+    ? '<div class="ms-menu" style="left:0; min-width:240px; max-height:280px">'
         + '<input class="search-box mg-add-search" id="mg-add-search" placeholder="Search markets…" value="'+esc(state.mgAddQ||"")+'" style="width:100%; max-width:none; margin-bottom:6px">'
         + (availShown.length? availShown.map(function(m){ return '<div class="ms-opt" data-mg-addmk-group="'+g.id+'" data-mg-addmk-key="'+m.key+'"><span class="cb"></span><span>'+esc(m.label)+'</span></div>'; }).join("") : '<div class="sub-muted" style="padding:8px">'+(avail.length?'No matches.':'All markets added.')+'</div>')
       + '</div>'
     : '';
-  return '<div class="mg-card" draggable="true" data-drag-mg="'+g.id+'">'
-    + '<div class="mg-head">'
-      + '<span class="drag" title="Drag to reorder">⠿</span>'
+  return '<tr class="mg-trow" draggable="true" data-drag-mg="'+g.id+'">'
+    + '<td class="mg-c-pri"><div class="mg-pri-wrap"><span class="drag" title="Drag to reorder">⠿</span>'
       + '<div class="spin"><input class="spin-in mg-prio" type="text" inputmode="numeric" value="'+no+'" data-mg-prio-id="'+g.id+'">'
         + '<div class="spin-btns"><button data-mg-prio-dir="up" data-mg-prio-id="'+g.id+'" '+(no<=1?'disabled':'')+'>▲</button>'
         + '<button data-mg-prio-dir="down" data-mg-prio-id="'+g.id+'" '+(no>=total?'disabled':'')+'>▼</button></div></div>'
-      + '<input class="mg-name" value="'+esc(g.name)+'" data-mg-rename="'+g.id+'">'
-      + '<span class="mt-meta">'+g.markets.length+' market'+(g.markets.length===1?'':'s')+'</span>'
-      + '<span class="spacer"></span>'
-      + '<div class="ms mg-add"><button class="btn sm" data-mg-add-toggle="'+g.id+'">+ Add market</button>'+addMenu+'</div>'
-      + '<button class="btn sm danger" data-mg-del="'+g.id+'">Delete</button>'
-    + '</div>'
-    + '<div class="mg-body">'+chips+'</div>'
-  + '</div>';
+    + '</div></td>'
+    + '<td class="mg-c-name"><input class="mg-name" value="'+esc(g.name)+'" data-mg-rename="'+g.id+'"></td>'
+    + '<td class="mg-c-cnt">'+g.markets.length+'</td>'
+    + '<td class="mg-c-mk"><div class="mg-chips">'+chips
+        + '<span class="ms mg-add"><button class="btn sm" data-mg-add-toggle="'+g.id+'">+ Add</button>'+addMenu+'</span>'
+      + '</div></td>'
+    + '<td class="mg-c-act"><button class="btn sm danger" data-mg-del="'+g.id+'">Delete</button></td>'
+  + '</tr>';
 }
 function marketGroupsMainHtml(){
   if(!state.mgSport) state.mgSport=NODES[ROOT_IDS[0]].name;
@@ -1367,16 +1378,20 @@ function marketGroupsMainHtml(){
   + '</div>' : '';
   var sportSel='<div class="ms" style="min-width:200px"><button class="ms-toggle" data-mg-sport-toggle>'+esc(sport)+'</button>'+sportMenu+'</div>';
 
-  var cards = groups.length===0
+  var body = groups.length===0
     ? '<div class="empty-state">No market groups for '+esc(sport)+' yet — create one to get started.</div>'
-    : groups.map(function(g,i){ return mgGroupCardHtml(g, i+1, total, sport, allMk); }).join("");
+    : '<table class="mg-table"><thead><tr>'
+        + '<th class="mg-c-pri">Priority</th><th>Group</th><th class="mg-c-cnt">Markets</th><th>Markets in group</th><th class="mg-c-act"></th>'
+      + '</tr></thead><tbody>'
+        + groups.map(function(g,i){ return mgGroupRowHtml(g, i+1, total, sport, allMk); }).join("")
+      + '</tbody></table>';
 
   return '<div class="panel">'
     + '<div class="panel-head"><h2>Market Groups</h2><span class="hint">create groups, drag or set a priority, and add markets to each group</span>'
       + '<span class="spacer"></span>'
       + '<div class="toolbar">'+sportSel+'<button class="btn primary" data-mg-new>+ New group</button></div>'
     + '</div>'
-    + '<div class="panel-body">'+cards+'</div>'
+    + '<div class="panel-body">'+body+'</div>'
   + '</div>';
 }
 
@@ -1670,24 +1685,40 @@ function settingsModal(node){
       + '<div class="mp-list">'+rows+'</div>';
   } else if(sec==="market-templates"){
     var spp=sportOf(node), amk=marketsFor(spp), tmpls=templatesForSport(spp);
+    var applied = node.template? TEMPLATES[node.template] : null;
     var inh=null, pp=node.parentId; while(pp){ if(NODES[pp].template && TEMPLATES[NODES[pp].template]){ inh={node:NODES[pp], t:TEMPLATES[NODES[pp].template]}; break;} pp=NODES[pp].parentId; }
-    content='<div class="info-banner blue">ℹ️ Assign a market template to this '+node.type+'. The applied template is inherited by everything below unless overridden.</div>'
-      + (inh && !node.template ? '<div class="sub-muted" style="margin:-4px 0 10px">Currently inheriting from <b>'+esc(inh.node.name)+'</b>: '+esc(inh.t.name)+'</div>' : '');
+
+    // status banner: clearly state whether a template is assigned here
+    var statusBlock;
+    if(applied){
+      var alc=0,apc=0; amk.forEach(function(m){ var a=tmplAvail(applied,m.key); if(a.live)alc++; if(a.prematch)apc++; });
+      statusBlock='<div class="stpl-status assigned">'
+        + '<span class="eff-badge eff-on">ASSIGNED</span>'
+        + '<div><b>'+esc(applied.name)+'</b> <span class="sub-muted">· '+alc+' L · '+apc+' P</span></div>'
+        + '<span class="spacer"></span>'
+        + (state.modal.confirmUnassign
+            ? '<span class="sub-muted">Unassign?</span><button class="btn sm" data-stpl-cancel>No</button><button class="btn sm" data-stpl-confirm style="background:var(--neg);border-color:var(--neg);color:#fff">Yes</button>'
+            : '<button class="btn sm danger" data-stpl-unassign>Unassign</button>')
+      + '</div>';
+    } else {
+      statusBlock='<div class="stpl-status none">'
+        + '<span class="stpl-none-ic">∅</span>'
+        + '<div><b>No market template assigned to this '+node.type+'.</b><div class="sub-muted">'
+          + (inh? 'Currently inheriting from '+esc(inh.node.name)+' → '+esc(inh.t.name)+'. Assign one below to override.' : 'It uses the default market set. Choose one below to assign.')
+        + '</div></div>'
+      + '</div>';
+    }
+
+    content = statusBlock;
     if(!tmpls.length){
       content+='<div class="stpl-card" style="text-align:center; color:var(--muted)">No templates exist for '+esc(spp)+' yet. Create one in the <b>Market Templates</b> tab.</div>';
     } else {
-      content+='<div class="stpl-list">'+tmpls.map(function(tp){
-        var applied=node.template===tp.id, lc=0,pc=0,ic2=0;
+      content+='<div class="stpl-choose-label">Choose a template to assign</div>'
+        + '<div class="stpl-list">'+tmpls.map(function(tp){
+        var isApplied=node.template===tp.id, lc=0,pc=0,ic2=0;
         amk.forEach(function(m){ var a=tmplAvail(tp,m.key); if(a.live)lc++; if(a.prematch)pc++; if(a.live||a.prematch)ic2++; });
-        var ctrl;
-        if(applied){
-          ctrl = state.modal.confirmUnassign
-            ? '<span class="sub-muted">Unassign?</span><button class="btn sm" data-stpl-cancel>No</button><button class="btn sm" data-stpl-confirm style="background:var(--neg);border-color:var(--neg);color:#fff">Yes</button>'
-            : '<span class="eff-badge eff-on">Applied</span><button class="btn sm danger" data-stpl-unassign>Unassign</button>';
-        } else {
-          ctrl = '<button class="btn sm primary" data-stpl-assign="'+tp.id+'">Assign</button>';
-        }
-        return '<div class="stpl-row'+(applied?' applied':'')+'">'
+        var ctrl = isApplied ? '<span class="eff-badge eff-on">Applied</span>' : '<button class="btn sm primary" data-stpl-assign="'+tp.id+'">Assign</button>';
+        return '<div class="stpl-row'+(isApplied?' applied':'')+'">'
           + '<span class="stpl-name">'+esc(tp.name)+'</span>'
           + '<span class="mt-meta">'+ic2+' markets · <span class="ch-lbl live">'+lc+' L</span> · <span class="ch-lbl pre">'+pc+' P</span></span>'
           + '<span class="spacer"></span>'+ctrl
