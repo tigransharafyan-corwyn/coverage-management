@@ -1419,6 +1419,15 @@ function marketGroupsMainHtml(){
   + '</div>';
 }
 
+/* --- delete market group confirmation --- */
+function deleteGroupModal(g){
+  if(!g) return '';
+  var body='<div class="info-banner" style="background:#fdecec; border-color:#f0c0c0; color:var(--neg)">⚠️ Delete the group <b>'+esc(g.name)+'</b>'+(g.markets.length?' and its <b>'+g.markets.length+'</b> market'+(g.markets.length===1?'':'s')+' assignment'+(g.markets.length===1?'':'s'):'')+'? This can’t be undone.</div>';
+  var foot='<button class="btn" id="modal-close">Cancel</button>'
+    + '<button class="btn" data-mg-del-confirm="'+g.id+'" style="background:var(--neg); border-color:var(--neg); color:#fff">Delete group</button>';
+  return shell('Delete Market Group — '+esc(g.name), '<span class="dim-tag SPT">'+esc(g.sport)+'</span> confirm deletion', body, foot, false);
+}
+
 /* --- clone-from popup: pick an existing template to duplicate --- */
 function cloneFromModal(){
   var isAll = state.mtSport==="__all__";
@@ -1539,6 +1548,7 @@ function modalHtml(){
     case "assign": return assignModal(TEMPLATES[m.templateId]);
     case "delete-template": return deleteTemplateModal(TEMPLATES[m.templateId]);
     case "clone-from": return cloneFromModal();
+    case "delete-group": return deleteGroupModal(MARKET_GROUPS[m.groupId]);
     case "disabled-summary": return disabledSummaryModal();
     case "add-picked-trn": return pickerModal("tournament","Add Picked Tournaments", PICKED_TOURNAMENTS, "trn");
     default: return "";
@@ -2042,7 +2052,7 @@ root.addEventListener("click", function(e){
   // market-groups page (3 columns)
   var mgss=t.closest("[data-mg-sport-sel]"); if(mgss){ state.mgSport=mgss.getAttribute("data-mg-sport-sel"); state.mgGroupSel=null; render(); return; }
   if(t.closest("[data-mg-new]")){ var ngid=newGroup(state.mgSport); state.mgGroupSel=ngid; render(); return; }
-  var mgdel=t.closest("[data-mg-del]"); if(mgdel){ var did=mgdel.getAttribute("data-mg-del"); deleteGroup(did); if(state.mgGroupSel===did) state.mgGroupSel=null; render(); return; }
+  var mgdel=t.closest("[data-mg-del]"); if(mgdel){ state.modal={type:"delete-group", groupId:mgdel.getAttribute("data-mg-del")}; render(); return; }
   var mgpd=t.closest("[data-mg-prio-dir]"); if(mgpd){ reorderGroup(state.mgSport, mgpd.getAttribute("data-mg-prio-id"), mgpd.getAttribute("data-mg-prio-dir")); render(); return; }
   var mgadd=t.closest("[data-mg-add-group]"); if(mgadd){ var mga=MARKET_GROUPS[mgadd.getAttribute("data-mg-add-group")]; var mgak=mgadd.getAttribute("data-mg-add-key"); if(mga && mga.markets.indexOf(mgak)===-1) mga.markets.push(mgak); render(); return; }
   var mgrm=t.closest("[data-mg-rm-group]"); if(mgrm){ var mgr=MARKET_GROUPS[mgrm.getAttribute("data-mg-rm-group")]; var mgrk=mgrm.getAttribute("data-mg-rm-key"); if(mgr) mgr.markets=mgr.markets.filter(function(x){return x!==mgrk;}); render(); return; }
@@ -2136,6 +2146,9 @@ modalRoot.addEventListener("click", function(e){
 
   // clone-from popup: clone the chosen template and open the editor
   var cfr=t.closest("[data-clonefrom]"); if(cfr){ var cfid=cloneTemplate(cfr.getAttribute("data-clonefrom")); if(cfid){ var cft=TEMPLATES[cfid]; state.mtSport=cft.sport; state.modal={type:"template-form", mode:"edit", templateId:cfid, sport:cft.sport, name:cft.name, avail:JSON.parse(JSON.stringify(cft.avail||{})), mq:""}; } render(); return; }
+
+  // delete-group confirm
+  var dgc=t.closest("[data-mg-del-confirm]"); if(dgc){ var dgid=dgc.getAttribute("data-mg-del-confirm"); deleteGroup(dgid); if(state.mgGroupSel===dgid) state.mgGroupSel=null; state.modal=null; render(); return; }
 
   // picker tree expand/collapse
   var px=t.closest("[data-pk-exp]"); if(px){ var pid=px.getAttribute("data-pk-exp"); if(!state.modal.exp)state.modal.exp=new Set(); if(state.modal.exp.has(pid))state.modal.exp.delete(pid); else state.modal.exp.add(pid); render(); return; }
