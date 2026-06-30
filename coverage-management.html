@@ -361,7 +361,12 @@
   .mt-card.open { border-color:var(--accent); }
   .mt-head { display:flex; align-items:center; gap:10px; padding:9px 12px; cursor:pointer; background:#fff; }
   .mt-head:hover { background:var(--row-hover); }
+  .mt-head.mt-static { cursor:default; }
+  .mt-head.mt-static:hover { background:#fff; }
+  .mt-name-static { font-size:13.5px; font-weight:650; color:var(--text); }
   .mt-head .twisty { color:var(--muted); }
+  .nt-bulk { display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-bottom:10px; }
+  .nt-bulk .ch-lbl { width:auto; }
   .mt-name { border:1px solid transparent; background:transparent; font-size:13.5px; font-weight:650; color:var(--text); border-radius:6px; padding:4px 7px; font-family:inherit; min-width:240px; }
   .mt-name:hover { border-color:var(--border-strong); }
   .mt-name:focus { outline:none; border-color:var(--accent); background:#fff; }
@@ -1178,29 +1183,19 @@ function ageGroupsMainHtml(){
 
 /* ---------- market templates view: create templates per sport, with live/prematch availability ---------- */
 function mtCardHtml(t, allMk, showSport){
-  var open=state.mtExpanded===t.id;
   var liveCount=0, preCount=0, inc=0;
   allMk.forEach(function(m){ var a=tmplAvail(t,m.key); if(a.live)liveCount++; if(a.prematch)preCount++; if(a.live||a.prematch)inc++; });
-  var head='<div class="mt-head" data-mt-expand="'+t.id+'">'
-    + '<span class="twisty '+(open?'open':'')+'">'+CHEVRON+'</span>'
-    + (showSport?'<span class="dim-tag SPT">'+esc(t.sport)+'</span>':'')
-    + '<input class="mt-name" value="'+esc(t.name)+'" data-mt-rename="'+t.id+'">'
-    + '<span class="mt-meta">'+inc+' markets · <span class="ch-lbl live">'+liveCount+' L</span> · <span class="ch-lbl pre">'+preCount+' P</span></span>'
-    + '<span class="spacer"></span>'
-    + '<button class="btn sm" data-mt-assign="'+t.id+'">Assign…</button>'
-    + '<button class="btn sm danger" data-mt-del="'+t.id+'">Delete</button>'
+  return '<div class="mt-card">'
+    + '<div class="mt-head mt-static">'
+      + (showSport?'<span class="dim-tag SPT">'+esc(t.sport)+'</span>':'')
+      + '<span class="mt-name-static">'+esc(t.name)+'</span>'
+      + '<span class="mt-meta">'+inc+' markets · <span class="ch-lbl live">'+liveCount+' L</span> · <span class="ch-lbl pre">'+preCount+' P</span></span>'
+      + '<span class="spacer"></span>'
+      + '<button class="btn sm" data-mt-edit="'+t.id+'">Edit</button>'
+      + '<button class="btn sm" data-mt-assign="'+t.id+'">Assign…</button>'
+      + '<button class="btn sm danger" data-mt-del="'+t.id+'">Delete</button>'
+    + '</div>'
   + '</div>';
-  var grid="";
-  if(open){
-    grid='<div class="mt-grid"><div class="mt-grid-head"><span>Market</span><span class="ch-lbl live">Live</span><span class="ch-lbl pre">Prematch</span></div>'
-      + allMk.map(function(m){ var a=tmplAvail(t,m.key);
-          return '<div class="mt-mrow"><span class="mt-mname">'+esc(m.label)+'</span>'
-            + '<span class="sw mini '+(a.live?'on':'')+'" data-ch="live" data-mt-toggle="'+t.id+'" data-mt-key="'+m.key+'" data-mt-ch="live"><span class="track"></span></span>'
-            + '<span class="sw mini '+(a.prematch?'on':'')+'" data-ch="prematch" data-mt-toggle="'+t.id+'" data-mt-key="'+m.key+'" data-mt-ch="prematch"><span class="track"></span></span>'
-          + '</div>'; }).join("")
-    + '</div>';
-  }
-  return '<div class="mt-card'+(open?' open':'')+'">'+head+grid+'</div>';
 }
 function marketTemplatesMainHtml(){
   if(!state.mtSport) state.mtSport = NODES[ROOT_IDS[0]].name;
@@ -1232,15 +1227,14 @@ function marketTemplatesMainHtml(){
       + '<div class="toolbar">'+sportSel+newBtn+'</div>'
     + '</div>'
     + '<div class="panel-body">'
-      + '<div class="info-banner blue">ℹ️ Templates are defined per sport, then applied on tournaments / events. Toggle each market’s availability for <b>Live</b> and <b>Prematch</b> independently. (Margins are managed in a separate section.)</div>'
       + cards
     + '</div>'
   + '</div>';
 }
 
-/* --- new template (create) modal --- */
-function newTemplateModal(){
-  var m=state.modal, sport=m.sport, allMk=marketsFor(sport);
+/* --- create / edit template modal --- */
+function templateFormModal(){
+  var m=state.modal, sport=m.sport, allMk=marketsFor(sport), isEdit=m.mode==="edit";
   var mq=(m.mq||"").toLowerCase();
   var shown = mq? allMk.filter(function(mk){ return mk.label.toLowerCase().indexOf(mq)!==-1; }) : allMk;
   var rows= shown.length? shown.map(function(mk){ var a=m.avail[mk.key]||{live:false,prematch:false};
@@ -1248,13 +1242,17 @@ function newTemplateModal(){
       + '<span class="sw mini '+(a.live?'on':'')+'" data-ch="live" data-nt-toggle="'+mk.key+'" data-nt-ch="live"><span class="track"></span></span>'
       + '<span class="sw mini '+(a.prematch?'on':'')+'" data-ch="prematch" data-nt-toggle="'+mk.key+'" data-nt-ch="prematch"><span class="track"></span></span>'
     + '</div>'; }).join("") : '<div class="sub-muted" style="padding:14px; text-align:center">No markets match “'+esc(m.mq||"")+'”.</div>';
-  var body='<div class="info-banner blue">ℹ️ New template for <b>'+esc(sport)+'</b>. Name it, then toggle each market’s Live / Prematch availability.</div>'
-    + '<label class="fld">Template name</label>'
-    + '<input id="nt-name" class="search-box" style="width:100%; max-width:none; margin-bottom:14px" placeholder="'+esc(sport)+' — Premium" value="'+esc(m.name||"")+'">'
+  var bulk='<div class="nt-bulk"><span class="sub-muted">Bulk:</span>'
+    + '<span class="ch-lbl live">Live</span><button class="btn sm" data-nt-all="live">Enable all</button><button class="btn sm" data-nt-none="live">Disable all</button>'
+    + '<span class="ch-lbl pre" style="margin-left:12px">Prematch</span><button class="btn sm" data-nt-all="prematch">Enable all</button><button class="btn sm" data-nt-none="prematch">Disable all</button>'
+  + '</div>';
+  var body='<label class="fld">Template name</label>'
+    + '<input id="nt-name" class="search-box" style="width:100%; max-width:none; margin-bottom:12px" placeholder="'+esc(sport)+' — Premium" value="'+esc(m.name||"")+'">'
     + '<input id="nt-mkt-search" class="search-box" style="width:100%; max-width:none; margin-bottom:8px" placeholder="Search markets…" value="'+esc(m.mq||"")+'">'
-    + '<div class="mt-grid" style="border:1px solid var(--border); border-radius:8px; max-height:42vh; overflow:auto; padding:4px 14px 4px"><div class="mt-grid-head"><span>Market</span><span class="ch-lbl live">Live</span><span class="ch-lbl pre">Prematch</span></div>'+rows+'</div>';
-  return shell('New Market Template', '<span class="dim-tag SPT">'+esc(sport)+'</span> define markets &amp; availability', body,
-    '<button class="btn" id="modal-close">Cancel</button><button class="btn primary" id="nt-save">Save template</button>', true);
+    + bulk
+    + '<div class="mt-grid" style="border:1px solid var(--border); border-radius:8px; max-height:40vh; overflow:auto; padding:4px 14px 4px"><div class="mt-grid-head"><span>Market</span><span class="ch-lbl live">Live</span><span class="ch-lbl pre">Prematch</span></div>'+rows+'</div>';
+  return shell((isEdit?'Edit':'New')+' Market Template', '<span class="dim-tag SPT">'+esc(sport)+'</span> define markets &amp; availability', body,
+    '<button class="btn" id="modal-close">Cancel</button><button class="btn primary" id="nt-save">'+(isEdit?'Save changes':'Save template')+'</button>', true);
 }
 
 /* --- assign template to coverage tree (tournament / event level) --- */
@@ -1328,7 +1326,7 @@ function modalHtml(){
     case "templates": return templatesModal(NODES[m.nodeId]);
     case "age": return ageModal(NODES[m.nodeId]);
     case "settings": return settingsModal(NODES[m.nodeId]);
-    case "new-template": return newTemplateModal();
+    case "template-form": return templateFormModal();
     case "assign": return assignModal(TEMPLATES[m.templateId]);
     case "delete-template": return deleteTemplateModal(TEMPLATES[m.templateId]);
     case "disabled-summary": return disabledSummaryModal();
@@ -1756,7 +1754,8 @@ root.addEventListener("click", function(e){
   // market-templates page
   if(t.closest("[data-mt-sport-toggle]")){ state.mtSportOpen=!state.mtSportOpen; render(); return; }
   var mts=t.closest("[data-mt-sport]"); if(mts){ state.mtSport=mts.getAttribute("data-mt-sport"); state.mtSportOpen=false; state.mtExpanded=null; render(); return; }
-  if(t.closest("[data-mt-new]")){ if(state.mtSport==="__all__")return; state.modal={type:"new-template", sport:state.mtSport, name:"", avail:{}}; render(); return; }
+  if(t.closest("[data-mt-new]")){ if(state.mtSport==="__all__")return; state.modal={type:"template-form", mode:"new", sport:state.mtSport, name:"", avail:{}, mq:""}; render(); return; }
+  var mtedit=t.closest("[data-mt-edit]"); if(mtedit){ var et=TEMPLATES[mtedit.getAttribute("data-mt-edit")]; state.modal={type:"template-form", mode:"edit", templateId:et.id, sport:et.sport, name:et.name, avail:JSON.parse(JSON.stringify(et.avail||{})), mq:""}; render(); return; }
   var mtasg=t.closest("[data-mt-assign]"); if(mtasg){ state.modal={type:"assign", templateId:mtasg.getAttribute("data-mt-assign"), exp:new Set(), q:""}; render(); return; }
   var mtdel=t.closest("[data-mt-del]"); if(mtdel){ e.stopPropagation(); state.modal={type:"delete-template", templateId:mtdel.getAttribute("data-mt-del"), showAssignments:false}; render(); return; }
   var mtt=t.closest("[data-mt-toggle]"); if(mtt){ var tt=TEMPLATES[mtt.getAttribute("data-mt-toggle")]; var mk=mtt.getAttribute("data-mt-key"); var mch=mtt.getAttribute("data-mt-ch"); setTmplAvail(tt, mk, mch, !tmplAvail(tt,mk)[mch]); render(); return; }
@@ -1850,9 +1849,11 @@ modalRoot.addEventListener("click", function(e){
   var ss=t.closest("[data-settings-section]"); if(ss){ state.modal.section=ss.getAttribute("data-settings-section"); render(); return; }
   var mpd=t.closest("[data-mp-dir]"); if(mpd){ moveMarketPrio(NODES[state.modal.nodeId], mpd.getAttribute("data-mp-key"), mpd.getAttribute("data-mp-dir")); render(); return; }
 
-  // new-template modal: market availability toggles + save
+  // template form modal: market toggles, bulk enable/disable, save
   var ntt=t.closest("[data-nt-toggle]"); if(ntt){ var nk=ntt.getAttribute("data-nt-toggle"), nch=ntt.getAttribute("data-nt-ch"); if(!state.modal.avail[nk])state.modal.avail[nk]={live:false,prematch:false}; state.modal.avail[nk][nch]=!state.modal.avail[nk][nch]; render(); return; }
-  if(t.id==="nt-save"){ var sp=state.modal.sport; var nm=(state.modal.name||"").trim()||(sp+" — New template"); var id=newTemplate(sp); var tt=TEMPLATES[id]; tt.name=nm; tt.avail=JSON.parse(JSON.stringify(state.modal.avail||{})); syncTmplMarkets(tt); state.mtSport=sp; state.mtExpanded=id; state.modal=null; render(); return; }
+  var ntall=t.closest("[data-nt-all]"); if(ntall){ var ach=ntall.getAttribute("data-nt-all"); marketsFor(state.modal.sport).forEach(function(mk){ if(!state.modal.avail[mk.key])state.modal.avail[mk.key]={live:false,prematch:false}; state.modal.avail[mk.key][ach]=true; }); render(); return; }
+  var ntnone=t.closest("[data-nt-none]"); if(ntnone){ var nch2=ntnone.getAttribute("data-nt-none"); marketsFor(state.modal.sport).forEach(function(mk){ if(state.modal.avail[mk.key])state.modal.avail[mk.key][nch2]=false; }); render(); return; }
+  if(t.id==="nt-save"){ var md=state.modal; var nm=(md.name||"").trim()||(md.sport+" — New template"); var tt; if(md.mode==="edit"){ tt=TEMPLATES[md.templateId]; if(tt){ tt.name=nm; tt.avail=JSON.parse(JSON.stringify(md.avail||{})); syncTmplMarkets(tt); } } else { var id=newTemplate(md.sport); tt=TEMPLATES[id]; tt.name=nm; tt.avail=JSON.parse(JSON.stringify(md.avail||{})); syncTmplMarkets(tt); } state.mtSport=md.sport; state.modal=null; render(); return; }
 
   // assign modal: expand + toggle assignment
   var ax=t.closest("[data-asg-exp]"); if(ax){ var axid=ax.getAttribute("data-asg-exp"); if(state.modal.exp.has(axid))state.modal.exp.delete(axid); else state.modal.exp.add(axid); render(); return; }
