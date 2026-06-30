@@ -706,6 +706,7 @@ function newTemplate(sport){
   return base;
 }
 function deleteTemplate(id){ delete TEMPLATES[id]; Object.keys(NODES).forEach(function(k){ if(NODES[k].template===id) NODES[k].template=null; }); }
+function cloneTemplate(srcId){ var s=TEMPLATES[srcId]; if(!s) return null; var id=newTemplate(s.sport); var t=TEMPLATES[id]; t.name=s.name+" (copy)"; t.avail=JSON.parse(JSON.stringify(s.avail||{})); syncTmplMarkets(t); return id; }
 
 /* ----------------------------- Market groups (per sport) ----------------------------- */
 var MARKET_GROUPS = {};  // id -> {id, sport, name, order, markets:[keys]}
@@ -1298,6 +1299,7 @@ function mtCardHtml(t, allMk, showSport){
       + '<span class="mt-meta">'+inc+' markets · <span class="ch-lbl live">'+liveCount+' L</span> · <span class="ch-lbl pre">'+preCount+' P</span></span>'
       + '<span class="spacer"></span>'
       + '<button class="btn sm" data-mt-edit="'+t.id+'">Edit</button>'
+      + '<button class="btn sm" data-mt-clone="'+t.id+'">Clone</button>'
       + '<button class="btn sm" data-mt-assign="'+t.id+'">Assign…</button>'
       + '<button class="btn sm danger" data-mt-del="'+t.id+'">Delete</button>'
     + '</div>'
@@ -1717,7 +1719,8 @@ function settingsModal(node){
         + '<div class="stpl-list">'+tmpls.map(function(tp){
         var isApplied=node.template===tp.id, lc=0,pc=0,ic2=0;
         amk.forEach(function(m){ var a=tmplAvail(tp,m.key); if(a.live)lc++; if(a.prematch)pc++; if(a.live||a.prematch)ic2++; });
-        var ctrl = isApplied ? '<span class="eff-badge eff-on">Applied</span>' : '<button class="btn sm primary" data-stpl-assign="'+tp.id+'">Assign</button>';
+        var ctrl = '<button class="btn sm" data-stpl-edit="'+tp.id+'">Edit</button>'
+          + (isApplied ? '<span class="eff-badge eff-on">Applied</span>' : '<button class="btn sm primary" data-stpl-assign="'+tp.id+'">Assign</button>');
         return '<div class="stpl-row'+(isApplied?' applied':'')+'">'
           + '<span class="stpl-name">'+esc(tp.name)+'</span>'
           + '<span class="mt-meta">'+ic2+' markets · <span class="ch-lbl live">'+lc+' L</span> · <span class="ch-lbl pre">'+pc+' P</span></span>'
@@ -1974,6 +1977,7 @@ root.addEventListener("click", function(e){
   var mts=t.closest("[data-mt-sport]"); if(mts){ state.mtSport=mts.getAttribute("data-mt-sport"); state.mtSportOpen=false; state.mtExpanded=null; render(); return; }
   if(t.closest("[data-mt-new]")){ if(state.mtSport==="__all__")return; state.modal={type:"template-form", mode:"new", sport:state.mtSport, name:"", avail:{}, mq:""}; render(); return; }
   var mtedit=t.closest("[data-mt-edit]"); if(mtedit){ var et=TEMPLATES[mtedit.getAttribute("data-mt-edit")]; state.modal={type:"template-form", mode:"edit", templateId:et.id, sport:et.sport, name:et.name, avail:JSON.parse(JSON.stringify(et.avail||{})), mq:""}; render(); return; }
+  var mtcl=t.closest("[data-mt-clone]"); if(mtcl){ var cid=cloneTemplate(mtcl.getAttribute("data-mt-clone")); if(cid){ var ct=TEMPLATES[cid]; state.mtSport=ct.sport; state.modal={type:"template-form", mode:"edit", templateId:cid, sport:ct.sport, name:ct.name, avail:JSON.parse(JSON.stringify(ct.avail||{})), mq:""}; } render(); return; }
   var mtasg=t.closest("[data-mt-assign]"); if(mtasg){ state.modal={type:"assign", templateId:mtasg.getAttribute("data-mt-assign"), exp:new Set(), q:""}; render(); return; }
   var mtdel=t.closest("[data-mt-del]"); if(mtdel){ e.stopPropagation(); state.modal={type:"delete-template", templateId:mtdel.getAttribute("data-mt-del"), showAssignments:false}; render(); return; }
   var mtt=t.closest("[data-mt-toggle]"); if(mtt){ var tt=TEMPLATES[mtt.getAttribute("data-mt-toggle")]; var mk=mtt.getAttribute("data-mt-key"); var mch=mtt.getAttribute("data-mt-ch"); setTmplAvail(tt, mk, mch, !tmplAvail(tt,mk)[mch]); render(); return; }
@@ -2086,6 +2090,8 @@ modalRoot.addEventListener("click", function(e){
   var mpd=t.closest("[data-mp-dir]"); if(mpd){ moveMarketPrio(NODES[state.modal.nodeId], mpd.getAttribute("data-mp-key"), mpd.getAttribute("data-mp-dir")); render(); return; }
   var mpt=t.closest("[data-mp-toggle]"); if(mpt){ var mpn=NODES[state.modal.nodeId]; var mtk=mpt.getAttribute("data-mp-tkey"); var mtc=mpt.getAttribute("data-mp-tch"); setMarketChannel(mpn, mtk, mtc, !(effMarket(mpn,mtk,mtc).state==='on')); render(); return; }
 
+  // settings: edit a template (opens the template form)
+  var sed=t.closest("[data-stpl-edit]"); if(sed){ var setpl=TEMPLATES[sed.getAttribute("data-stpl-edit")]; if(setpl){ state.modal={type:"template-form", mode:"edit", templateId:setpl.id, sport:setpl.sport, name:setpl.name, avail:JSON.parse(JSON.stringify(setpl.avail||{})), mq:""}; } render(); return; }
   // settings: assign template
   var stas=t.closest("[data-stpl-assign]"); if(stas){ NODES[state.modal.nodeId].template=stas.getAttribute("data-stpl-assign"); state.modal.confirmUnassign=false; render(); return; }
   // settings: unassign template (with confirmation)
