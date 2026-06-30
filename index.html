@@ -288,6 +288,23 @@
   .mc-name { flex:0 1 auto; font-weight:550; font-size:12.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .mc-cnt { color:var(--muted); font-size:11px; font-weight:600; flex-shrink:0; }
   .mc-chev { color:var(--muted); width:14px; height:14px; display:inline-flex; flex-shrink:0; }
+  .row-gear { border:none; background:none; color:var(--muted); cursor:pointer; width:24px; height:24px; padding:0; display:inline-flex; align-items:center; justify-content:center; border-radius:6px; flex-shrink:0; }
+  .row-gear:hover { background:var(--border); color:var(--accent); }
+  .row-gear svg { width:15px; height:15px; }
+
+  /* settings modal */
+  .set-shell { display:flex; gap:18px; align-items:flex-start; }
+  .set-nav-col { width:210px; flex-shrink:0; display:flex; flex-direction:column; gap:3px; }
+  .set-nav { text-align:left; border:none; background:none; padding:9px 11px; border-radius:8px; cursor:pointer; font-size:12.5px; font-weight:600; color:var(--text); display:flex; gap:9px; align-items:center; }
+  .set-nav:hover { background:var(--row-hover); }
+  .set-nav.on { background:var(--accent-soft); color:var(--accent); }
+  .set-nav .set-ic { width:16px; text-align:center; }
+  .set-content { flex:1; min-width:0; }
+  .mp-list { border:1px solid var(--border); border-radius:8px; padding:6px; max-height:46vh; overflow:auto; }
+  .mp-row { display:flex; align-items:center; gap:10px; padding:6px 8px; border-radius:7px; }
+  .mp-row:hover { background:var(--row-hover); }
+  .mp-row.dragging { opacity:.4; }
+  .mp-name { flex:1; font-weight:550; font-size:12.5px; }
   .mc-ch { display:inline-flex; align-items:center; gap:4px; flex-shrink:0; }
   .ch-lbl { font-size:9.5px; font-weight:800; width:11px; text-align:center; flex-shrink:0; }
   .ch-lbl.live { color:var(--live); }
@@ -696,6 +713,7 @@ state.focusId = ROOT_IDS[0];
 /* ----------------------------- SVG ----------------------------- */
 var CHEVRON = '<svg viewBox="0 0 16 16" fill="none"><path d="M6 4l4 4-4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 var CHECK = '<svg viewBox="0 0 12 12" fill="none"><path d="M2.5 6.5l2.2 2.2L9.5 3.5" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+var GEAR = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>';
 var ICONS = { sport:"●", category:"▣", tournament:"🏆", event:"⚔", market:"⊞" };
 function esc(s){ return String(s).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c];}); }
 function partnerName(id){ var p=PARTNERS.filter(function(x){return x.id===id;})[0]; return p?p.name:id; }
@@ -909,6 +927,7 @@ function mcRowHtml(node, col, no, total, isSel){
       + liveBadge
     + '</span>'
     + chans
+    + ((node.type==="sport"||node.type==="tournament")?'<button class="row-gear" data-settings="'+node.id+'" title="Settings">'+GEAR+'</button>':'')
     + (hasKids?'<span class="mc-chev">'+CHEVRON+'</span>':'<span style="width:14px"></span>')
   + '</div>';
 }
@@ -1032,6 +1051,7 @@ function modalHtml(){
     case "template": return applyTemplateModal(NODES[m.nodeId]);
     case "templates": return templatesModal(NODES[m.nodeId]);
     case "age": return ageModal(NODES[m.nodeId]);
+    case "settings": return settingsModal(NODES[m.nodeId]);
     case "disabled-summary": return disabledSummaryModal();
     case "add-picked-trn": return pickerModal("tournament","Add Picked Tournaments", PICKED_TOURNAMENTS, "trn");
     default: return "";
@@ -1175,6 +1195,56 @@ function ageModal(node){
       + AGE_GROUPS.map(function(a){ return '<span class="chip '+(node.ageGroup===a?'on':'')+'" data-set-age="'+a+'" data-age-node="'+node.id+'">'+a+'</span>'; }).join("")
     + '</div>';
   return shell('Age Group — '+esc(node.name), esc(pathLabel(node)), body, null, false);
+}
+
+/* --- per-entity settings (gear icon on sport/tournament rows) --- */
+function marketLabelFor(sport, key){ var m=marketsFor(sport).filter(function(x){return x.key===key;})[0]; return m?m.label:key; }
+function marketOrderKeys(node){
+  var all=marketsFor(sportOf(node)).map(function(m){return m.key;});
+  if(!node.marketOrder) node.marketOrder=all.slice();
+  node.marketOrder=node.marketOrder.filter(function(k){return all.indexOf(k)!==-1;});
+  all.forEach(function(k){ if(node.marketOrder.indexOf(k)===-1) node.marketOrder.push(k); });
+  return node.marketOrder;
+}
+function moveMarketPrio(node, key, dir){ var a=marketOrderKeys(node); var i=a.indexOf(key), j=dir==="up"?i-1:i+1; if(j<0||j>=a.length)return; a.splice(i,1); a.splice(j,0,key); }
+function setMarketPrioPos(node, key, pos){ var a=marketOrderKeys(node); var i=a.indexOf(key); pos=Math.max(1,Math.min(a.length,pos))-1; a.splice(i,1); a.splice(pos,0,key); }
+function dropMarketPrio(node, dragKey, targetKey, after){ if(dragKey===targetKey)return; var a=marketOrderKeys(node); a.splice(a.indexOf(dragKey),1); var ti=a.indexOf(targetKey)+(after?1:0); a.splice(ti,0,dragKey); }
+
+var SETTINGS_SECTIONS=[
+  {k:"market-priority", ic:"⊞", label:"Market priority"},
+  {k:"display",         ic:"🏷", label:"Display name & flags"},
+  {k:"cutoff",          ic:"⏱", label:"Betting cut-off"},
+  {k:"exposure",        ic:"🛡", label:"Limits & exposure"}
+];
+function settingsModal(node){
+  var sec=state.modal.section||"market-priority";
+  var nav=SETTINGS_SECTIONS.map(function(s){
+    return '<button class="set-nav '+(sec===s.k?'on':'')+'" data-settings-section="'+s.k+'"><span class="set-ic">'+s.ic+'</span><span>'+s.label+'</span></button>';
+  }).join("");
+
+  var content;
+  if(sec==="market-priority"){
+    var sport=sportOf(node);
+    var keys=marketOrderKeys(node), total=keys.length;
+    var rows=keys.map(function(k,i){
+      return '<div class="mp-row" draggable="true" data-mp-key="'+k+'">'
+        + '<span class="drag" title="Drag to reorder">⠿</span>'
+        + '<div class="spin"><input class="spin-in mp-prio" type="text" inputmode="numeric" value="'+(i+1)+'" data-mp-prio-key="'+k+'">'
+          + '<div class="spin-btns"><button data-mp-dir="up" data-mp-key="'+k+'" '+(i===0?'disabled':'')+'>▲</button>'
+          + '<button data-mp-dir="down" data-mp-key="'+k+'" '+(i===total-1?'disabled':'')+'>▼</button></div></div>'
+        + '<span class="mp-name">'+esc(marketLabelFor(sport,k))+'</span>'
+      + '</div>';
+    }).join("");
+    content='<div class="info-banner blue">ℹ️ Order in which markets are shown to players for this '+node.type+'. Drag the handle or set a priority number. Inherited by everything below unless overridden.</div>'
+      + '<div class="mp-list">'+rows+'</div>';
+  } else {
+    var lbl=SETTINGS_SECTIONS.filter(function(s){return s.k===sec;})[0].label;
+    content='<div class="empty-state">“'+esc(lbl)+'” — placeholder section in this prototype.</div>';
+  }
+
+  var body='<div class="set-shell"><div class="set-nav-col">'+nav+'</div><div class="set-content">'+content+'</div></div>';
+  return shell('Settings — '+esc(node.name), LEVEL_TAG[node.type]+' · '+esc(pathLabel(node)), body,
+    '<button class="btn primary" id="modal-close">Done</button>', true);
 }
 
 /* --- disabled summary overlay (per partner) --- */
@@ -1418,6 +1488,9 @@ root.addEventListener("click", function(e){
   var ageb=t.closest("[data-age]"); if(ageb){ state.modal={type:"age",nodeId:ageb.getAttribute("data-age")}; render(); return; }
   if(t.closest("#open-disabled-summary")){ state.summaryFilters={q:"",kind:"all",sport:"",type:"",channel:"both"}; state.modal={type:"disabled-summary"}; render(); return; }
 
+  // per-entity settings (gear)
+  var gear=t.closest("[data-settings]"); if(gear){ state.modal={type:"settings", nodeId:gear.getAttribute("data-settings"), section:"market-priority"}; render(); return; }
+
   // column row select / drill (before the menu-close catch-all)
   var cr=t.closest("[data-col-row]"); if(cr){ if(t.closest(".spin")) return; selectInColumns(NODES[cr.getAttribute("data-col-row")]); render(); return; }
 
@@ -1472,6 +1545,10 @@ modalRoot.addEventListener("click", function(e){
   // picker: add a leaf to the pick list
   var pa=t.closest("[data-pick-add]"); if(pa){ var aid=pa.getAttribute("data-pick-add"), akind=pa.getAttribute("data-pick-kind"); var arr=akind==="trn"?PICKED_TOURNAMENTS:PICKED_EVENTS; if(arr.indexOf(aid)===-1)arr.push(aid); render(); return; }
 
+  // settings: section switch + market-priority arrows
+  var ss=t.closest("[data-settings-section]"); if(ss){ state.modal.section=ss.getAttribute("data-settings-section"); render(); return; }
+  var mpd=t.closest("[data-mp-dir]"); if(mpd){ moveMarketPrio(NODES[state.modal.nodeId], mpd.getAttribute("data-mp-key"), mpd.getAttribute("data-mp-dir")); render(); return; }
+
   // disabled-summary filters
   var sk=t.closest("[data-sum-kind]"); if(sk){ state.summaryFilters.kind=sk.getAttribute("data-sum-kind"); render(); return; }
   var sc=t.closest("[data-sum-ch]"); if(sc){ state.summaryFilters.channel=sc.getAttribute("data-sum-ch"); render(); return; }
@@ -1508,7 +1585,16 @@ modalRoot.addEventListener("input", function(e){
 modalRoot.addEventListener("change", function(e){
   if(e.target.id==="sum-sport"){ state.summaryFilters.sport=e.target.value; render(); return; }
   if(e.target.id==="sum-type"){ state.summaryFilters.type=e.target.value; render(); return; }
+  if(e.target.classList && e.target.classList.contains("mp-prio")){ var v=parseInt(e.target.value,10); if(!isNaN(v)) setMarketPrioPos(NODES[state.modal.nodeId], e.target.getAttribute("data-mp-prio-key"), v); render(); return; }
 });
+modalRoot.addEventListener("keydown", function(e){ if(e.key==="Enter" && e.target.classList && e.target.classList.contains("mp-prio")){ e.preventDefault(); var v=parseInt(e.target.value,10); if(!isNaN(v)) setMarketPrioPos(NODES[state.modal.nodeId], e.target.getAttribute("data-mp-prio-key"), v); render(); } });
+
+/* market-priority drag & drop inside the settings modal */
+var dragMp=null;
+modalRoot.addEventListener("dragstart", function(e){ var r=e.target.closest("[data-mp-key]"); if(!r)return; dragMp=r.getAttribute("data-mp-key"); e.dataTransfer.effectAllowed="move"; try{e.dataTransfer.setData("text/plain",dragMp);}catch(_){} r.classList.add("dragging"); });
+modalRoot.addEventListener("dragover", function(e){ if(dragMp && e.target.closest("[data-mp-key]")){ e.preventDefault(); e.dataTransfer.dropEffect="move"; } });
+modalRoot.addEventListener("drop", function(e){ if(!dragMp)return; var r=e.target.closest("[data-mp-key]"); if(r){ e.preventDefault(); var tk=r.getAttribute("data-mp-key"); if(tk!==dragMp){ var rc=r.getBoundingClientRect(); dropMarketPrio(NODES[state.modal.nodeId], dragMp, tk, e.clientY>rc.top+rc.height/2); } } dragMp=null; render(); });
+modalRoot.addEventListener("dragend", function(){ if(dragMp){ dragMp=null; render(); } });
 function provMove(i,d){ var n=NODES[state.modal.nodeId]; var arr=(n.providers[state.partner]||[]).slice(); var j=i+d; if(j<0||j>=arr.length)return; var tmp=arr[i];arr[i]=arr[j];arr[j]=tmp; n.providers[state.partner]=arr; render(); }
 function provDel(i){ var n=NODES[state.modal.nodeId]; var arr=(n.providers[state.partner]||[]).slice(); arr.splice(i,1); n.providers[state.partner]=arr; render(); }
 function provAdd(){ var sel=document.getElementById("prov-add-sel"); if(!sel||!sel.value)return; var n=NODES[state.modal.nodeId]; var arr=(n.providers[state.partner]||[]).slice(); arr.push(sel.value); n.providers[state.partner]=arr; render(); }
