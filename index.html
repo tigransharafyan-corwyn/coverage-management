@@ -1241,14 +1241,17 @@ function marketTemplatesMainHtml(){
 /* --- new template (create) modal --- */
 function newTemplateModal(){
   var m=state.modal, sport=m.sport, allMk=marketsFor(sport);
-  var rows=allMk.map(function(mk){ var a=m.avail[mk.key]||{live:false,prematch:false};
+  var mq=(m.mq||"").toLowerCase();
+  var shown = mq? allMk.filter(function(mk){ return mk.label.toLowerCase().indexOf(mq)!==-1; }) : allMk;
+  var rows= shown.length? shown.map(function(mk){ var a=m.avail[mk.key]||{live:false,prematch:false};
     return '<div class="mt-mrow"><span class="mt-mname">'+esc(mk.label)+'</span>'
       + '<span class="sw mini '+(a.live?'on':'')+'" data-ch="live" data-nt-toggle="'+mk.key+'" data-nt-ch="live"><span class="track"></span></span>'
       + '<span class="sw mini '+(a.prematch?'on':'')+'" data-ch="prematch" data-nt-toggle="'+mk.key+'" data-nt-ch="prematch"><span class="track"></span></span>'
-    + '</div>'; }).join("");
+    + '</div>'; }).join("") : '<div class="sub-muted" style="padding:14px; text-align:center">No markets match “'+esc(m.mq||"")+'”.</div>';
   var body='<div class="info-banner blue">ℹ️ New template for <b>'+esc(sport)+'</b>. Name it, then toggle each market’s Live / Prematch availability.</div>'
     + '<label class="fld">Template name</label>'
     + '<input id="nt-name" class="search-box" style="width:100%; max-width:none; margin-bottom:14px" placeholder="'+esc(sport)+' — Premium" value="'+esc(m.name||"")+'">'
+    + '<input id="nt-mkt-search" class="search-box" style="width:100%; max-width:none; margin-bottom:8px" placeholder="Search markets…" value="'+esc(m.mq||"")+'">'
     + '<div class="mt-grid" style="border:1px solid var(--border); border-radius:8px; max-height:42vh; overflow:auto; padding:4px 14px 4px"><div class="mt-grid-head"><span>Market</span><span class="ch-lbl live">Live</span><span class="ch-lbl pre">Prematch</span></div>'+rows+'</div>';
   return shell('New Market Template', '<span class="dim-tag SPT">'+esc(sport)+'</span> define markets &amp; availability', body,
     '<button class="btn" id="modal-close">Cancel</button><button class="btn primary" id="nt-save">Save template</button>', true);
@@ -1892,6 +1895,7 @@ modalRoot.addEventListener("input", function(e){
   if(e.target.id==="picker-search"){ state.modal.q=e.target.value; render(); var el=document.getElementById("picker-search"); if(el){el.focus(); var v=el.value; el.setSelectionRange(v.length,v.length);} return; }
   if(e.target.id==="asg-search"){ state.modal.q=e.target.value; render(); var ela=document.getElementById("asg-search"); if(ela){ela.focus(); var va=ela.value; ela.setSelectionRange(va.length,va.length);} return; }
   if(e.target.id==="nt-name"){ state.modal.name=e.target.value; return; }
+  if(e.target.id==="nt-mkt-search"){ state.modal.mq=e.target.value; render(); var elm=document.getElementById("nt-mkt-search"); if(elm){elm.focus(); var vm=elm.value; elm.setSelectionRange(vm.length,vm.length);} return; }
   if(e.target.id==="sum-search"){ state.summaryFilters.q=e.target.value; render(); return; }
 });
 modalRoot.addEventListener("change", function(e){
