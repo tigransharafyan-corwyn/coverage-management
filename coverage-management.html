@@ -355,6 +355,24 @@
   .pk-box svg { width:11px; height:11px; }
   .pk-added { font-size:10px; font-weight:700; color:var(--pos); background:var(--live-soft); padding:1px 8px; border-radius:999px; }
 
+  /* market templates page */
+  .mt-card { border:1px solid var(--border); border-radius:10px; margin-bottom:10px; overflow:hidden; }
+  .mt-card.open { border-color:var(--accent); }
+  .mt-head { display:flex; align-items:center; gap:10px; padding:9px 12px; cursor:pointer; background:#fff; }
+  .mt-head:hover { background:var(--row-hover); }
+  .mt-head .twisty { color:var(--muted); }
+  .mt-name { border:1px solid transparent; background:transparent; font-size:13.5px; font-weight:650; color:var(--text); border-radius:6px; padding:4px 7px; font-family:inherit; min-width:240px; }
+  .mt-name:hover { border-color:var(--border-strong); }
+  .mt-name:focus { outline:none; border-color:var(--accent); background:#fff; }
+  .mt-meta { color:var(--muted); font-size:11.5px; }
+  .mt-grid { padding:4px 14px 12px; }
+  .mt-grid-head { display:grid; grid-template-columns:1fr 96px 96px; align-items:center; padding:7px 0; border-bottom:1px solid var(--border-strong); font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.4px; color:var(--muted); }
+  .mt-grid-head .ch-lbl { text-align:center; width:auto; }
+  .mt-mrow { display:grid; grid-template-columns:1fr 96px 96px; align-items:center; padding:6px 0; border-bottom:1px solid var(--border); font-size:12.5px; }
+  .mt-mrow:last-child { border-bottom:none; }
+  .mt-mrow .sw { justify-self:center; }
+  .mt-mname { font-weight:550; }
+
   /* age groups page */
   .agp-section { margin-bottom:16px; }
   .agp-shead { display:flex; align-items:center; gap:8px; font-weight:700; font-size:13px; padding:7px 4px; border-bottom:1px solid var(--border); margin-bottom:4px; }
@@ -631,8 +649,25 @@ var TEMPLATES = {};
       TEMPLATES["tmpl_"+key+"_lite"] = { id:"tmpl_"+key+"_lite", sport:sport, name:sport+" — Lite (mobile)", desc:"Trimmed set for mobile clients", markets: all.slice(0, Math.min(4,all.length)).map(function(m){return m.key;}) };
     }
   });
+  // seed per-market live/prematch availability for each template
+  Object.keys(TEMPLATES).forEach(function(id){
+    var t=TEMPLATES[id]; t.avail={};
+    t.markets.forEach(function(k,i){ t.avail[k]={ live:true, prematch:true }; });
+    // a little variety: "lite" templates are prematch-only on their last market
+    if(id.indexOf("_lite")!==-1 && t.markets.length){ t.avail[t.markets[t.markets.length-1]].live=false; }
+  });
 })();
 function templatesForSport(sport){ return Object.keys(TEMPLATES).map(function(k){return TEMPLATES[k];}).filter(function(t){return t.sport===sport;}); }
+function tmplAvail(t, key){ return (t.avail && t.avail[key]) || {live:false, prematch:false}; }
+function syncTmplMarkets(t){ t.markets = Object.keys(t.avail||{}).filter(function(k){ return t.avail[k].live||t.avail[k].prematch; }); }
+function setTmplAvail(t, key, ch, val){ if(!t.avail) t.avail={}; if(!t.avail[key]) t.avail[key]={live:false,prematch:false}; t.avail[key][ch]=val; syncTmplMarkets(t); }
+var TMPL_SEQ=0;
+function newTemplate(sport){
+  var base="tmpl_custom_"+sport.replace(/\W/g,"")+"_"+(TMPL_SEQ++);
+  TEMPLATES[base]={ id:base, sport:sport, name:sport+" — New template", desc:"Custom template", markets:[], avail:{} };
+  return base;
+}
+function deleteTemplate(id){ delete TEMPLATES[id]; Object.keys(NODES).forEach(function(k){ if(NODES[k].template===id) NODES[k].template=null; }); }
 
 /* ----------------------------- Picked tournaments / events (mock) ----------------------------- */
 function allOfType(type){ return Object.keys(NODES).map(function(k){return NODES[k];}).filter(function(n){return n.type===type;}); }
@@ -716,6 +751,9 @@ var state = {
   agpFilter: [],             // age-groups page: show only these age groups
   agpFilterOpen: false,      // age-groups page filter dropdown open
   agpRowOpen: null,          // age-groups page: tournament id whose age dropdown is open
+  mtSport: "",               // market-templates page: selected sport
+  mtSportOpen: false,        // market-templates page: sport dropdown open
+  mtExpanded: null,          // market-templates page: expanded template id
   search: "",
   colSel: {},                // parentKey ("root" or nodeId) -> selected child id  (Miller columns)
   focusId: null,             // node shown in the details panel
@@ -791,6 +829,7 @@ function kpisHtml(){
 function mainViewHtml(){
   if(state.view==="picked-tournaments") return pickedTournamentsMainHtml();
   if(state.view==="age-groups") return ageGroupsMainHtml();
+  if(state.view==="market-templates") return marketTemplatesMainHtml();
   return coverageMainHtml();
 }
 
@@ -805,6 +844,7 @@ function navTabsHtml(){
     + tab("coverage","🗂","Coverage", null)
     + tab("picked-tournaments","🏆","Picked Tournaments", PICKED_TOURNAMENTS.length)
     + tab("age-groups","🎂","Age groups", null)
+    + tab("market-templates","◳","Market templates", null)
   + '</div>';
 }
 
@@ -1119,6 +1159,58 @@ function ageGroupsMainHtml(){
       + '<div class="info-banner blue">ℹ️ Age groups classify tournaments (e.g. youth or reserve competitions). The assignment here drives the age-group filter in Coverage. '
         + '<b>'+totalTrn+'</b> tournaments · <b>'+unassigned+'</b> unassigned.</div>'
       + sections
+    + '</div>'
+  + '</div>';
+}
+
+/* ---------- market templates view: create templates per sport, with live/prematch availability ---------- */
+function mtCardHtml(t, allMk){
+  var open=state.mtExpanded===t.id;
+  var liveCount=0, preCount=0, inc=0;
+  allMk.forEach(function(m){ var a=tmplAvail(t,m.key); if(a.live)liveCount++; if(a.prematch)preCount++; if(a.live||a.prematch)inc++; });
+  var head='<div class="mt-head" data-mt-expand="'+t.id+'">'
+    + '<span class="twisty '+(open?'open':'')+'">'+CHEVRON+'</span>'
+    + '<input class="mt-name" value="'+esc(t.name)+'" data-mt-rename="'+t.id+'">'
+    + '<span class="mt-meta">'+inc+' markets · <span class="ch-lbl live">'+liveCount+' L</span> · <span class="ch-lbl pre">'+preCount+' P</span></span>'
+    + '<span class="spacer"></span>'
+    + '<button class="btn sm danger" data-mt-del="'+t.id+'">Delete</button>'
+  + '</div>';
+  var grid="";
+  if(open){
+    grid='<div class="mt-grid"><div class="mt-grid-head"><span>Market</span><span class="ch-lbl live">Live</span><span class="ch-lbl pre">Prematch</span></div>'
+      + allMk.map(function(m){ var a=tmplAvail(t,m.key);
+          return '<div class="mt-mrow"><span class="mt-mname">'+esc(m.label)+'</span>'
+            + '<span class="sw mini '+(a.live?'on':'')+'" data-ch="live" data-mt-toggle="'+t.id+'" data-mt-key="'+m.key+'" data-mt-ch="live"><span class="track"></span></span>'
+            + '<span class="sw mini '+(a.prematch?'on':'')+'" data-ch="prematch" data-mt-toggle="'+t.id+'" data-mt-key="'+m.key+'" data-mt-ch="prematch"><span class="track"></span></span>'
+          + '</div>'; }).join("")
+    + '</div>';
+  }
+  return '<div class="mt-card'+(open?' open':'')+'">'+head+grid+'</div>';
+}
+function marketTemplatesMainHtml(){
+  if(!state.mtSport) state.mtSport = NODES[ROOT_IDS[0]].name;
+  var sport=state.mtSport;
+  var allMk=marketsFor(sport);
+  var tmpls=templatesForSport(sport);
+
+  var sportNames=sortedChildren(null).map(function(n){return n.name;});
+  var sportMenu = state.mtSportOpen ? '<div class="ms-menu" style="max-height:320px">'
+    + sportNames.map(function(s){ var on=s===sport; return '<div class="ms-opt '+(on?'sel':'')+'" data-mt-sport="'+esc(s)+'"><span class="cb">'+(on?CHECK:'')+'</span><span>'+esc(s)+'</span></div>'; }).join("")
+  + '</div>' : '';
+  var sportSel='<div class="ms" style="min-width:200px"><button class="ms-toggle" data-mt-sport-toggle>'+esc(sport)+'</button>'+sportMenu+'</div>';
+
+  var cards = tmpls.length===0
+    ? '<div class="empty-state">No templates for '+esc(sport)+' yet — create one to get started.</div>'
+    : tmpls.map(function(t){ return mtCardHtml(t, allMk); }).join("");
+
+  return '<div class="panel">'
+    + '<div class="panel-head"><h2>Market Templates</h2><span class="hint">create market sets per sport &amp; toggle their live / prematch availability</span>'
+      + '<span class="spacer"></span>'
+      + '<div class="toolbar">'+sportSel+'<button class="btn primary" data-mt-new>+ New template</button></div>'
+    + '</div>'
+    + '<div class="panel-body">'
+      + '<div class="info-banner blue">ℹ️ Templates are defined per sport, then applied on tournaments / events. Toggle each market’s availability for <b>Live</b> and <b>Prematch</b> independently. (Margins are managed in a separate section.)</div>'
+      + cards
     + '</div>'
   + '</div>';
 }
@@ -1555,6 +1647,15 @@ root.addEventListener("click", function(e){
   var arw=t.closest("[data-agp-row]"); if(arw){ var rid=arw.getAttribute("data-agp-row"); state.agpRowOpen=(state.agpRowOpen===rid)?null:rid; state.agpFilterOpen=false; render(); return; }
   var ast=t.closest("[data-agp-set]"); if(ast){ var an=NODES[ast.getAttribute("data-agp-node")]; var aval=ast.getAttribute("data-agp-set"); an.ageGroup=aval||null; state.agpRowOpen=null; render(); return; }
 
+  // market-templates page
+  if(t.closest("[data-mt-sport-toggle]")){ state.mtSportOpen=!state.mtSportOpen; render(); return; }
+  var mts=t.closest("[data-mt-sport]"); if(mts){ state.mtSport=mts.getAttribute("data-mt-sport"); state.mtSportOpen=false; state.mtExpanded=null; render(); return; }
+  if(t.closest("[data-mt-new]")){ var nid=newTemplate(state.mtSport); state.mtExpanded=nid; render(); return; }
+  var mtdel=t.closest("[data-mt-del]"); if(mtdel){ e.stopPropagation(); deleteTemplate(mtdel.getAttribute("data-mt-del")); render(); return; }
+  var mtt=t.closest("[data-mt-toggle]"); if(mtt){ var tt=TEMPLATES[mtt.getAttribute("data-mt-toggle")]; var mk=mtt.getAttribute("data-mt-key"); var mch=mtt.getAttribute("data-mt-ch"); setTmplAvail(tt, mk, mch, !tmplAvail(tt,mk)[mch]); render(); return; }
+  if(t.closest("[data-mt-rename]")){ return; }   // clicking the name input shouldn't toggle expand
+  var mte=t.closest("[data-mt-expand]"); if(mte){ var teid=mte.getAttribute("data-mt-expand"); state.mtExpanded=(state.mtExpanded===teid)?null:teid; render(); return; }
+
   // market enable/disable toggle (writes to the level node's market rules)
   var msw=t.closest("[data-mkt-key]"); if(msw){ var mn=NODES[msw.getAttribute("data-mkt-node")]; var mk=msw.getAttribute("data-mkt-key"); var mch=msw.getAttribute("data-mkt-ch"); var curOn=effMarket(mn,mk,mch).state==='on'; setMarketChannel(mn,mk,mch,!curOn); render(); return; }
 
@@ -1586,7 +1687,7 @@ root.addEventListener("click", function(e){
   var cr=t.closest("[data-col-row]"); if(cr){ if(t.closest(".spin")) return; selectInColumns(NODES[cr.getAttribute("data-col-row")]); render(); return; }
 
   // clicking anywhere else closes any open dropdown menus
-  if(state.ageMenuOpen || state.agpFilterOpen || state.agpRowOpen){ state.ageMenuOpen=false; state.agpFilterOpen=false; state.agpRowOpen=null; render(); return; }
+  if(state.ageMenuOpen || state.agpFilterOpen || state.agpRowOpen || state.mtSportOpen){ state.ageMenuOpen=false; state.agpFilterOpen=false; state.agpRowOpen=null; state.mtSportOpen=false; render(); return; }
 });
 
 root.addEventListener("change", function(e){
@@ -1596,6 +1697,7 @@ root.addEventListener("change", function(e){
 root.addEventListener("input", function(e){
   if(e.target.id==="cov-search"){ state.search=e.target.value; render(); return; }
   if(e.target.id==="agp-search"){ state.agpSearch=e.target.value; render(); return; }
+  var mtr=e.target.closest && e.target.closest("[data-mt-rename]"); if(mtr){ var tt=TEMPLATES[mtr.getAttribute("data-mt-rename")]; if(tt) tt.name=e.target.value; return; }
 });
 
 // commit priority typed into a spinner field (coverage node or pick-list)
