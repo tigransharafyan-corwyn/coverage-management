@@ -1753,22 +1753,21 @@ function settingsModal(node){
     }
 
     content = statusBlock;
+    var currentId = node.template ? node.template : (inh ? inh.t.id : null);
+    var choose = tmpls.filter(function(tp){ return tp.id!==currentId; });
     if(!tmpls.length){
       content+='<div class="stpl-card" style="text-align:center; color:var(--muted)">No templates exist for '+esc(spp)+' yet. Create one in the <b>Market Templates</b> tab.</div>';
+    } else if(!choose.length){
+      content+='<div class="stpl-card" style="text-align:center; color:var(--muted)">No other templates for '+esc(spp)+' — create one in the <b>Market Templates</b> tab.</div>';
     } else {
-      content+='<div class="stpl-choose-label">Choose a template to assign</div>'
-        + '<div class="stpl-list">'+tmpls.map(function(tp){
-        var isApplied=node.template===tp.id;
-        var isInherited=!node.template && inh && inh.t.id===tp.id, lc=0,pc=0,ic2=0;
+      content+='<div class="stpl-choose-label">'+(currentId?'Assign a different template':'Choose a template to assign')+'</div>'
+        + '<div class="stpl-list">'+choose.map(function(tp){
+        var lc=0,pc=0,ic2=0;
         amk.forEach(function(m){ var a=tmplAvail(tp,m.key); if(a.live)lc++; if(a.prematch)pc++; if(a.live||a.prematch)ic2++; });
-        var marker = isApplied ? '<span class="eff-badge eff-on">Applied here</span>'
-          : (isInherited ? '<span class="eff-badge eff-inh">Inherited</span>'
-                         : '<button class="btn sm primary" data-stpl-assign="'+tp.id+'">Assign</button>');
-        var ctrl = '<button class="btn sm" data-stpl-edit="'+tp.id+'">Edit</button>' + marker;
-        return '<div class="stpl-row'+(isApplied||isInherited?' applied':'')+'">'
+        return '<div class="stpl-row">'
           + '<span class="stpl-name">'+esc(tp.name)+'</span>'
           + '<span class="mt-meta">'+ic2+' markets · <span class="ch-lbl live">'+lc+' L</span> · <span class="ch-lbl pre">'+pc+' P</span></span>'
-          + '<span class="spacer"></span>'+ctrl
+          + '<span class="spacer"></span><button class="btn sm" data-stpl-edit="'+tp.id+'">Edit</button><button class="btn sm primary" data-stpl-assign="'+tp.id+'">Assign</button>'
         + '</div>';
       }).join("")+'</div>';
     }
