@@ -1493,10 +1493,7 @@ function setMarketPrioPos(node, key, pos){ var a=marketOrderKeys(node); var i=a.
 function dropMarketPrio(node, dragKey, targetKey, after){ if(dragKey===targetKey)return; var a=marketOrderKeys(node); a.splice(a.indexOf(dragKey),1); var ti=a.indexOf(targetKey)+(after?1:0); a.splice(ti,0,dragKey); }
 
 var SETTINGS_SECTIONS=[
-  {k:"market-priority", ic:"⊞", label:"Market priority"},
-  {k:"display",         ic:"🏷", label:"Display name & flags"},
-  {k:"cutoff",          ic:"⏱", label:"Betting cut-off"},
-  {k:"exposure",        ic:"🛡", label:"Limits & exposure"}
+  {k:"market-priority", ic:"↑", label:"Market priority"}
 ];
 function settingsModal(node){
   var sec=state.modal.section||"market-priority";
