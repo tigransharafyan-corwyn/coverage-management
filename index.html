@@ -734,7 +734,6 @@ function kpisHtml(){
 
 /* ---------- view router ---------- */
 function mainViewHtml(){
-  if(state.view==="picked-events") return pickedEventsMainHtml();
   if(state.view==="picked-tournaments") return pickedTournamentsMainHtml();
   return coverageMainHtml();
 }
@@ -749,7 +748,6 @@ function navTabsHtml(){
   return '<div class="tabbar">'
     + tab("coverage","🗂","Coverage", null)
     + tab("picked-tournaments","🏆","Picked Tournaments", PICKED_TOURNAMENTS.length)
-    + tab("picked-events","⭐","Picked Events", PICKED_EVENTS.length)
   + '</div>';
 }
 
@@ -915,11 +913,6 @@ function detailsHtml(node){
     pickBlock='<div class="cd-block"><label>Quick access</label>'+(pinned
       ? '<button class="btn sm danger" data-unpin-trn="'+node.id+'">★ Remove from picks</button>'
       : '<button class="btn sm" data-pin-trn="'+node.id+'">☆ Pin as top tournament</button>')+'</div>';
-  } else if(node.type==="event"){
-    var picked=PICKED_EVENTS.indexOf(node.id)!==-1;
-    pickBlock='<div class="cd-block"><label>Quick access</label>'+(picked
-      ? '<button class="btn sm danger" data-unpin-event="'+node.id+'">★ Remove from picks</button>'
-      : '<button class="btn sm" data-pin-event="'+node.id+'">☆ Add to picked events</button>')+'</div>';
   }
 
   return '<div class="panel cov-details">'
@@ -943,39 +936,6 @@ function pickSpinner(list, id, no, total){
       + '<button data-pickprio-dir="up" data-pickprio-id="'+id+'" data-pickprio-list="'+list+'" '+(no<=1?'disabled':'')+'>▲</button>'
       + '<button data-pickprio-dir="down" data-pickprio-id="'+id+'" data-pickprio-list="'+list+'" '+(no>=total?'disabled':'')+'>▼</button>'
     + '</div></div>';
-}
-
-/* ---------- picked events view ---------- */
-function pickedEventsMainHtml(){
-  var ids = PICKED_EVENTS.slice();           // array order = priority
-  var total = ids.length;
-  var cards = total===0
-    ? '<div class="empty-state">No picked events. Use “Add events” to build the list.</div>'
-    : ids.map(function(id, i){
-        var n=NODES[id]; if(!n) return "";
-        return '<div class="pe-card" draggable="true" data-drag-pick="'+id+'" data-pick-list="event">'
-          + '<span class="drag" title="Drag to reorder">⠿</span>'
-          + pickSpinner("event", id, i+1, total)
-          + '<div style="flex:1; min-width:0">'
-            + '<div class="pe-name">'+esc(n.name)+(n.isLiveNow?' <span class="live-pill">live now</span>':'')+'</div>'
-            + '<div class="pe-path">'+esc(pathLabel(NODES[n.parentId]))+'</div>'
-          + '</div>'
-          + '<div class="pe-when">'+fmtWhen(n.date||BASE_DATE)+'</div>'
-          + '<button class="btn sm" data-jump-event="'+id+'">Open in coverage</button>'
-          + '<button class="btn sm danger" data-unpin-event="'+id+'">Remove</button>'
-        + '</div>';
-      }).join("");
-
-  return '<div class="panel">'
-    + '<div class="panel-head"><h2>Picked Events</h2><span class="hint">drag or set a priority — order is mirrored in the iframe left tree</span>'
-      + '<span class="spacer"></span>'
-      + '<button class="btn primary" id="add-picked-event">+ Add events</button>'
-    + '</div>'
-    + '<div class="panel-body">'
-      + '<div class="info-banner blue">ℹ️ Picked events appear as a dedicated menu item in the player iframe’s left tree, in this priority order.</div>'
-      + cards
-    + '</div>'
-  + '</div>';
 }
 
 /* ---------- picked tournaments view ---------- */
@@ -1024,7 +984,6 @@ function modalHtml(){
     case "age": return ageModal(NODES[m.nodeId]);
     case "disabled-summary": return disabledSummaryModal();
     case "add-picked-trn": return pickerModal("tournament","Add Picked Tournaments", PICKED_TOURNAMENTS, "trn");
-    case "add-picked-event": return pickerModal("event","Add Picked Events", PICKED_EVENTS, "event");
     default: return "";
   }
 }
@@ -1386,17 +1345,13 @@ root.addEventListener("click", function(e){
 
   // pin / unpin picks
   var pt=t.closest("[data-pin-trn]"); if(pt){ var pid=pt.getAttribute("data-pin-trn"); if(PICKED_TOURNAMENTS.indexOf(pid)===-1)PICKED_TOURNAMENTS.push(pid); render(); return; }
-  var pe2=t.closest("[data-pin-event]"); if(pe2){ var eid2=pe2.getAttribute("data-pin-event"); if(PICKED_EVENTS.indexOf(eid2)===-1)PICKED_EVENTS.push(eid2); render(); return; }
   var upt=t.closest("[data-unpin-trn]"); if(upt){ var pid2=upt.getAttribute("data-unpin-trn"); PICKED_TOURNAMENTS=PICKED_TOURNAMENTS.filter(function(x){return x!==pid2;}); render(); return; }
-  var upe=t.closest("[data-unpin-event]"); if(upe){ var eid=upe.getAttribute("data-unpin-event"); PICKED_EVENTS=PICKED_EVENTS.filter(function(x){return x!==eid;}); render(); return; }
 
-  // open pickers
+  // open picker
   if(t.closest("#add-picked-trn")){ state.modal={type:"add-picked-trn",q:"",exp:new Set()}; render(); return; }
-  if(t.closest("#add-picked-event")){ state.modal={type:"add-picked-event",q:"",exp:new Set()}; render(); return; }
 
   // jump from picks into coverage columns
   var jt=t.closest("[data-jump]"); if(jt){ selectInColumns(NODES[jt.getAttribute("data-jump")]); render(); return; }
-  var je=t.closest("[data-jump-event]"); if(je){ selectInColumns(NODES[je.getAttribute("data-jump-event")]); render(); return; }
 
   // open modals
   var pv=t.closest("[data-providers]"); if(pv){ state.modal={type:"providers",nodeId:pv.getAttribute("data-providers")}; render(); return; }
