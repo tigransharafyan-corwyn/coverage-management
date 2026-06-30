@@ -278,28 +278,22 @@
   .mcol-head { padding:9px 12px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:8px; background:#f8fafc; border-radius:10px 10px 0 0; }
   .mcol-head .lv { font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.5px; color:var(--muted); }
   .mcol-head .cnt { background:#eef2f7; color:var(--muted); border-radius:999px; padding:1px 7px; font-size:10px; font-weight:700; }
-  .inh-toggle { display:inline-flex; align-items:center; gap:5px; }
-  .inh-toggle .inh-lbl { font-size:10.5px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.3px; }
   .mcol-body { overflow-y:auto; padding:6px; }
   .mcol-row { display:flex; align-items:center; gap:6px; padding:5px 7px; border-radius:8px; cursor:pointer; border:1px solid transparent; }
   .mcol-row:hover { background:var(--row-hover); }
   .mcol-row.sel { background:var(--accent-soft); border-color:var(--accent); }
   .mcol-row.dragging { opacity:.4; }
   .mcol-row.dim .mc-name { color:var(--muted); text-decoration:line-through; text-decoration-color:var(--border-strong); }
-  .mc-name { flex:1; font-weight:550; font-size:12.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .mc-main { flex:1; min-width:0; display:flex; align-items:center; gap:7px; }
+  .mc-name { flex:0 1 auto; font-weight:550; font-size:12.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .mc-cnt { color:var(--muted); font-size:11px; font-weight:600; flex-shrink:0; }
   .mc-chev { color:var(--muted); width:14px; height:14px; display:inline-flex; flex-shrink:0; }
   .mc-ch { display:inline-flex; align-items:center; gap:4px; flex-shrink:0; }
   .ch-lbl { font-size:9.5px; font-weight:800; width:11px; text-align:center; flex-shrink:0; }
   .ch-lbl.live { color:var(--live); }
   .ch-lbl.pre { color:var(--prematch); }
-  .inh-chip { font-size:8.5px; font-weight:800; letter-spacing:.4px; padding:2px 5px; border-radius:5px; border:1px solid var(--border-strong); color:var(--muted); cursor:pointer; background:#fff; flex-shrink:0; }
-  .inh-chip:hover { border-color:var(--accent); color:var(--accent); }
-  .inh-chip.on { background:var(--accent); border-color:var(--accent); color:#fff; }
   .drag { color:var(--border-strong); cursor:grab; font-size:13px; flex-shrink:0; letter-spacing:-2px; }
   .drag:active { cursor:grabbing; }
-  .mcol-row.inh .drag { visibility:hidden; }
-  .mcol-row.inh { cursor:pointer; }
 
   /* priority spinner: single field, arrows stacked */
   .spin { display:inline-flex; align-items:stretch; border:1px solid var(--border-strong); border-radius:7px; overflow:hidden; height:28px; flex-shrink:0; background:#fff; }
@@ -690,7 +684,6 @@ var state = {
   search: "",
   colSel: {},                // parentKey ("root" or nodeId) -> selected child id  (Miller columns)
   focusId: null,             // node shown in the details panel
-  inheritItem: {},           // node id -> true  (this item inherits its order → its manual priority is disabled)
   modal: null,               // {type, nodeId, ...}
   modalTab: 0,
   summaryFilters: { q:"", kind:"all", sport:"", type:"", channel:"both" },
@@ -892,7 +885,6 @@ function mcolHtml(col){
 
 function mcRowHtml(node, col, no, total, isSel){
   var showLive=state.mode!=="prematch", showPre=state.mode!=="live";
-  var inherit = !!state.inheritItem[node.id];
   var hasKids = node.type!=="market" && node.childIds.length>0;
   var dimmed = node.type!=="market" && (!effChannel(node,'live') && !effChannel(node,'prematch'));
   var chans;
@@ -909,16 +901,13 @@ function mcRowHtml(node, col, no, total, isSel){
     + '</span>';
   }
   var liveBadge=(node.type==="event"&&node.isLiveNow)?' <span class="live-pill">live</span>':'';
-  // markets don't carry an inherit-ordering control here
-  var inhChip = node.type==="market" ? '' :
-    '<span class="inh-chip '+(inherit?'on':'')+'" data-inherit-item="'+node.id+'" title="Inherit ordering for this item — disables its manual priority">INH</span>';
-  return '<div class="mcol-row'+(isSel?' sel':'')+(dimmed?' dim':'')+(inherit?' inh':'')+'" data-col-row="'+node.id+'" data-pkey="'+col.pkey+'"'
-      + (inherit?'':' draggable="true" data-drag-node="'+node.id+'"')+'>'
+  return '<div class="mcol-row'+(isSel?' sel':'')+(dimmed?' dim':'')+'" data-col-row="'+node.id+'" data-pkey="'+col.pkey+'" draggable="true" data-drag-node="'+node.id+'">'
     + '<span class="drag" title="Drag to reorder">⠿</span>'
-    + spinnerHtml(node, no, total, inherit)
-    + inhChip
-    + '<span class="mc-name" title="'+esc(node.name)+'">'+esc(node.name)+liveBadge+'</span>'
-    + (hasKids?'<span class="mc-cnt">'+node.childIds.length+'</span>':'')
+    + spinnerHtml(node, no, total, false)
+    + '<span class="mc-main"><span class="mc-name" title="'+esc(node.name)+'">'+esc(node.name)+'</span>'
+      + (hasKids?'<span class="mc-cnt">'+node.childIds.length+'</span>':'')
+      + liveBadge
+    + '</span>'
     + chans
     + (hasKids?'<span class="mc-chev">'+CHEVRON+'</span>':'<span style="width:14px"></span>')
   + '</div>';
@@ -1398,9 +1387,6 @@ root.addEventListener("click", function(e){
 
   // pick-list priority arrows
   var ppr=t.closest("[data-pickprio-dir]"); if(ppr){ movePick(ppr.getAttribute("data-pickprio-list"), ppr.getAttribute("data-pickprio-id"), ppr.getAttribute("data-pickprio-dir")); render(); return; }
-
-  // inherit-order toggle (per item)
-  var inh=t.closest("[data-inherit-item]"); if(inh){ var iid=inh.getAttribute("data-inherit-item"); if(state.inheritItem[iid]) delete state.inheritItem[iid]; else state.inheritItem[iid]=true; render(); return; }
 
   // age multiselect dropdown
   var atg=t.closest("[data-age-toggle]"); if(atg){ state.ageMenuOpen=!state.ageMenuOpen; render(); return; }
