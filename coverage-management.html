@@ -274,14 +274,14 @@
 
   /* Miller columns */
   .mcols { display:flex; gap:14px; overflow-x:auto; padding:2px 2px 8px; align-items:flex-start; }
-  .mcol { flex:0 0 318px; width:318px; border:1px solid var(--border); border-radius:10px; background:#fff; display:flex; flex-direction:column; max-height:600px; }
+  .mcol { flex:0 0 384px; width:384px; border:1px solid var(--border); border-radius:10px; background:#fff; display:flex; flex-direction:column; max-height:600px; }
   .mcol-head { padding:9px 12px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:8px; background:#f8fafc; border-radius:10px 10px 0 0; }
   .mcol-head .lv { font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.5px; color:var(--muted); }
   .mcol-head .cnt { background:#eef2f7; color:var(--muted); border-radius:999px; padding:1px 7px; font-size:10px; font-weight:700; }
   .inh-toggle { display:inline-flex; align-items:center; gap:5px; }
   .inh-toggle .inh-lbl { font-size:10.5px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.3px; }
   .mcol-body { overflow-y:auto; padding:6px; }
-  .mcol-row { display:flex; align-items:center; gap:7px; padding:5px 7px; border-radius:8px; cursor:pointer; border:1px solid transparent; }
+  .mcol-row { display:flex; align-items:center; gap:6px; padding:5px 7px; border-radius:8px; cursor:pointer; border:1px solid transparent; }
   .mcol-row:hover { background:var(--row-hover); }
   .mcol-row.sel { background:var(--accent-soft); border-color:var(--accent); }
   .mcol-row.dragging { opacity:.4; }
@@ -289,7 +289,13 @@
   .mc-name { flex:1; font-weight:550; font-size:12.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .mc-cnt { color:var(--muted); font-size:11px; font-weight:600; flex-shrink:0; }
   .mc-chev { color:var(--muted); width:14px; height:14px; display:inline-flex; flex-shrink:0; }
-  .mc-ch { display:inline-flex; align-items:center; gap:5px; flex-shrink:0; }
+  .mc-ch { display:inline-flex; align-items:center; gap:4px; flex-shrink:0; }
+  .ch-lbl { font-size:9.5px; font-weight:800; width:11px; text-align:center; flex-shrink:0; }
+  .ch-lbl.live { color:var(--live); }
+  .ch-lbl.pre { color:var(--prematch); }
+  .inh-chip { font-size:8.5px; font-weight:800; letter-spacing:.4px; padding:2px 5px; border-radius:5px; border:1px solid var(--border-strong); color:var(--muted); cursor:pointer; background:#fff; flex-shrink:0; }
+  .inh-chip:hover { border-color:var(--accent); color:var(--accent); }
+  .inh-chip.on { background:var(--accent); border-color:var(--accent); color:#fff; }
   .drag { color:var(--border-strong); cursor:grab; font-size:13px; flex-shrink:0; letter-spacing:-2px; }
   .drag:active { cursor:grabbing; }
   .mcol-row.inh .drag { visibility:hidden; }
@@ -665,7 +671,7 @@ var state = {
   search: "",
   colSel: {},                // parentKey ("root" or nodeId) -> selected child id  (Miller columns)
   focusId: null,             // node shown in the details panel
-  inheritOrder: {},          // parentKey -> true  (ordering inherited → manual ordering disabled)
+  inheritItem: {},           // node id -> true  (this item inherits its order → its manual priority is disabled)
   modal: null,               // {type, nodeId, ...}
   modalTab: 0,
   summaryFilters: { q:"", kind:"all", sport:"", type:"", channel:"both" },
@@ -772,12 +778,10 @@ function columnItems(col){
   var ordered = col.parent ? sortedChildren(col.parent) : sortedChildren(null);
   var rank={}; ordered.forEach(function(n,i){ rank[n.id]=i+1; });
   var shown = ordered.slice();
-  var inherit = !!state.inheritOrder[col.pkey];
-  if(inherit) shown.sort(function(a,b){ return a.name.localeCompare(b.name, undefined, {numeric:true}); });
   var q=state.search.trim().toLowerCase();
   if(q) shown=shown.filter(function(n){ return n.name.toLowerCase().indexOf(q)!==-1; });
   if(state.ageFilter && col.level==="tournament") shown=shown.filter(function(n){ return n.ageGroup===state.ageFilter; });
-  return {ordered:ordered, shown:shown, rank:rank, total:ordered.length, inherit:inherit};
+  return {ordered:ordered, shown:shown, rank:rank, total:ordered.length};
 }
 
 function coverageMainHtml(){
@@ -792,7 +796,7 @@ function coverageMainHtml(){
         + '<span class="spacer"></span>'
         + '<div class="toolbar">'
           + '<select class="input" id="age-filter" style="min-width:140px">'+ageOpts+'</select>'
-          + '<input id="cov-search" class="search-box" placeholder="Filter in columns…" value="'+esc(state.search)+'">'
+          + '<input id="cov-search" class="search-box" placeholder="Search…" value="'+esc(state.search)+'">'
         + '</div>'
       + '</div>'
       + '<div class="panel-body" style="padding:12px">'
@@ -820,23 +824,21 @@ function mcolHtml(col){
   var sel = state.colSel[col.pkey];
   var rows = ci.shown.length===0
     ? '<div class="sub-muted" style="padding:14px; text-align:center">No items'+(state.search||state.ageFilter?' match the filter':'')+'.</div>'
-    : ci.shown.map(function(n, i){
-        var no = ci.inherit ? (i+1) : ci.rank[n.id];
-        return mcRowHtml(n, col, no, ci.total, ci.inherit, sel===n.id);
+    : ci.shown.map(function(n){
+        return mcRowHtml(n, col, ci.rank[n.id], ci.total, sel===n.id);
       }).join("");
   var label = LEVEL_LABEL[col.level] || "Items";
   return '<div class="mcol" data-col="'+col.pkey+'">'
     + '<div class="mcol-head">'
       + '<span class="lv">'+label+'</span><span class="cnt">'+ci.shown.length+'</span>'
-      + '<span class="spacer"></span>'
-      + '<span class="inh-toggle"><span class="sw mini '+(ci.inherit?'on':'')+'" data-inherit="'+col.pkey+'" data-ch="prematch" title="Inherit ordering — disables manual priority"><span class="track"></span></span><span class="inh-lbl">Inherit</span></span>'
     + '</div>'
     + '<div class="mcol-body">'+rows+'</div>'
   + '</div>';
 }
 
-function mcRowHtml(node, col, no, total, inherit, isSel){
+function mcRowHtml(node, col, no, total, isSel){
   var showLive=state.mode!=="prematch", showPre=state.mode!=="live";
+  var inherit = !!state.inheritItem[node.id];
   var hasKids = node.type!=="market" && node.childIds.length>0;
   var dimmed = node.type!=="market" && (!effChannel(node,'live') && !effChannel(node,'prematch'));
   var chans;
@@ -844,17 +846,24 @@ function mcRowHtml(node, col, no, total, inherit, isSel){
     var pe=NODES[node.parentId];
     var lv=effMarket(pe,node.marketKey,'live'), pr=effMarket(pe,node.marketKey,'prematch');
     var parts=[];
-    if(showLive) parts.push('<span class="eff-badge '+(lv.excluded?'eff-exc':(lv.state==='on'?'eff-on':'eff-off'))+'">L</span>');
-    if(showPre) parts.push('<span class="eff-badge '+(pr.excluded?'eff-exc':(pr.state==='on'?'eff-on':'eff-off'))+'">P</span>');
+    if(showLive) parts.push('<span class="ch-lbl live">L</span><span class="eff-badge '+(lv.excluded?'eff-exc':(lv.state==='on'?'eff-on':'eff-off'))+'">'+(lv.excluded?'EX':lv.state==='on'?'ON':'OFF')+'</span>');
+    if(showPre) parts.push('<span class="ch-lbl pre">P</span><span class="eff-badge '+(pr.excluded?'eff-exc':(pr.state==='on'?'eff-on':'eff-off'))+'">'+(pr.excluded?'EX':pr.state==='on'?'ON':'OFF')+'</span>');
     chans='<span class="mc-ch">'+parts.join("")+'</span>';
   } else {
-    chans='<span class="mc-ch">'+(showLive?miniSwitch(node,'live'):'')+(showPre?miniSwitch(node,'prematch'):'')+'</span>';
+    chans='<span class="mc-ch">'
+      + (showLive?'<span class="ch-lbl live">L</span>'+miniSwitch(node,'live'):'')
+      + (showPre?'<span class="ch-lbl pre">P</span>'+miniSwitch(node,'prematch'):'')
+    + '</span>';
   }
   var liveBadge=(node.type==="event"&&node.isLiveNow)?' <span class="live-pill">live</span>':'';
+  // markets don't carry an inherit-ordering control here
+  var inhChip = node.type==="market" ? '' :
+    '<span class="inh-chip '+(inherit?'on':'')+'" data-inherit-item="'+node.id+'" title="Inherit ordering for this item — disables its manual priority">INH</span>';
   return '<div class="mcol-row'+(isSel?' sel':'')+(dimmed?' dim':'')+(inherit?' inh':'')+'" data-col-row="'+node.id+'" data-pkey="'+col.pkey+'"'
       + (inherit?'':' draggable="true" data-drag-node="'+node.id+'"')+'>'
     + '<span class="drag" title="Drag to reorder">⠿</span>'
     + spinnerHtml(node, no, total, inherit)
+    + inhChip
     + '<span class="mc-name" title="'+esc(node.name)+'">'+esc(node.name)+liveBadge+'</span>'
     + (hasKids?'<span class="mc-cnt">'+node.childIds.length+'</span>':'')
     + chans
@@ -1338,7 +1347,7 @@ root.addEventListener("click", function(e){
   var ppr=t.closest("[data-pickprio-dir]"); if(ppr){ movePick(ppr.getAttribute("data-pickprio-list"), ppr.getAttribute("data-pickprio-id"), ppr.getAttribute("data-pickprio-dir")); render(); return; }
 
   // inherit-order toggle (per column)
-  var inh=t.closest("[data-inherit]"); if(inh){ var pk=inh.getAttribute("data-inherit"); if(state.inheritOrder[pk]) delete state.inheritOrder[pk]; else state.inheritOrder[pk]=true; render(); return; }
+  var inh=t.closest("[data-inherit-item]"); if(inh){ var iid=inh.getAttribute("data-inherit-item"); if(state.inheritItem[iid]) delete state.inheritItem[iid]; else state.inheritItem[iid]=true; render(); return; }
 
   // channel toggle (mini switch or details switch)
   var sw=t.closest("[data-toggle]"); if(sw){ var n=NODES[sw.getAttribute("data-toggle")]; var ch=sw.getAttribute("data-ch"); setChannelCascade(n,ch,!n[ch].enabled); render(); return; }
