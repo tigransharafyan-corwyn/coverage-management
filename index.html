@@ -883,6 +883,8 @@ function render(){
   var mcolsEl=document.querySelector(".mcols"); var mcolsLeft=mcolsEl?mcolsEl.scrollLeft:0;
   var colTops={}; document.querySelectorAll(".mcol[data-col]").forEach(function(c){ var b=c.querySelector(".mcol-body"); if(b) colTops[c.getAttribute("data-col")]=b.scrollTop; });
   var winY=window.pageYOffset||0;
+  var mbEl=document.querySelector(".modal-body"); var mbTop=mbEl?mbEl.scrollTop:0;
+  var mpEl=document.querySelector(".mp-list"); var mpTop=mpEl?mpEl.scrollTop:0;
 
   var html = '<div class="app">'
     + topbarHtml()
@@ -901,6 +903,8 @@ function render(){
   // restore scroll positions
   var mc=document.querySelector(".mcols"); if(mc) mc.scrollLeft=mcolsLeft;
   document.querySelectorAll(".mcol[data-col]").forEach(function(c){ var b=c.querySelector(".mcol-body"); var k=c.getAttribute("data-col"); if(b&&colTops[k]!=null) b.scrollTop=colTops[k]; });
+  var mb=document.querySelector(".modal-body"); if(mb&&mbTop) mb.scrollTop=mbTop;
+  var mp=document.querySelector(".mp-list"); if(mp&&mpTop) mp.scrollTop=mpTop;
   if(window.pageYOffset!==winY) window.scrollTo(window.pageXOffset, winY);
 }
 
