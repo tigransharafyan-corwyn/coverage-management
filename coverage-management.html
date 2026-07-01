@@ -1410,7 +1410,7 @@ function marketGroupsMainHtml(){
       + '<span class="mc-chev">'+CHEVRON+'</span>'
     + '</div>';
   }).join("") : '<div class="sub-muted" style="padding:14px; text-align:center">No groups yet.</div>';
-  var col2='<div class="mcol"><div class="mcol-head"><span class="lv">Groups</span><span class="cnt">'+total+'</span><span class="spacer"></span><button class="btn sm primary" data-mg-new>+ New</button></div><div class="mcol-body">'+groupRows+'</div></div>';
+  var col2='<div class="mcol"><div class="mcol-head"><span class="lv">Market Groups</span><span class="cnt">'+total+'</span><span class="spacer"></span><button class="btn sm primary" data-mg-new>+ New</button></div><div class="mcol-body">'+groupRows+'</div></div>';
 
   // Column 3 — search to add; show only selected markets
   var col3body, col3cnt="";
@@ -1953,6 +1953,7 @@ function pickerModal(leafType, title, pickedArr, kind){
     var html = '<div class="pk-row pk-branch" data-pk-exp="'+node.id+'" style="padding-left:'+(10+depth*18)+'px">'
       + '<span class="pk-tw '+(open?'open':'')+'">'+CHEVRON+'</span>'
       + '<span class="dim-tag '+LEVEL_TAG[node.type]+'">'+LEVEL_TAG[node.type]+'</span>'
+      + (iconFor(node)?'<span class="mc-ic">'+iconFor(node)+'</span>':'')
       + '<span class="pk-name">'+esc(node.name)+'</span>'
       + '<span class="sub-muted">'+node.childIds.length+'</span>'
     + '</div>';
