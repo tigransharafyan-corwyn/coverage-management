@@ -959,7 +959,7 @@ var state = {
   focusId: null,             // node shown in the details panel
   modal: null,               // {type, nodeId, ...}
   modalTab: 0,
-  summaryFilters: { q:"", kind:"all", sport:"", type:"", channel:"both" },
+  summaryFilters: { q:"", entity:"", level:"", channel:"both", dateFrom:"", dateTo:"", user:"" },
   toast: null
 };
 // select the first sport by default
@@ -2210,29 +2210,38 @@ function collectDisabledIssues(){
   });
   return out;
 }
-function issuePassesExceptKind(it, f){
-  if(f.sport && it.sport!==f.sport) return false;
-  if(f.type && it.type!==f.type) return false;
+function entityOf(it){ return it.kind==="node" ? it.type : "market"; }   // what was disabled
+function levelOf(it){ return it.type; }                                    // where the rule was applied
+function dateBoundTs(str, end){ if(!str) return null; var p=str.split("-"); if(p.length!==3) return null; var y=+p[0],m=+p[1],d=+p[2]; return end? new Date(y,m-1,d,23,59,59,999).getTime() : new Date(y,m-1,d,0,0,0,0).getTime(); }
+function issuePasses(it, f){
+  if(f.entity && entityOf(it)!==f.entity) return false;
+  if(f.level && levelOf(it)!==f.level) return false;
   if(f.channel==="live" && it.channels.indexOf("Live")===-1) return false;
   if(f.channel==="prematch" && it.channels.indexOf("Prematch")===-1) return false;
+  if(f.user || f.dateFrom || f.dateTo){
+    var au=issueAudit(it);
+    if(f.user && au.by!==f.user) return false;
+    var lo=dateBoundTs(f.dateFrom,false), hi=dateBoundTs(f.dateTo,true);
+    if(lo!=null && au.ts<lo) return false;
+    if(hi!=null && au.ts>hi) return false;
+  }
   var q=(f.q||"").toLowerCase();
   if(q && it.name.toLowerCase().indexOf(q)===-1 && it.path.toLowerCase().indexOf(q)===-1) return false;
   return true;
 }
 function filterIssues(all, f){
   return all.filter(function(it){
-    if(f.kind!=="all" && it.kind!==f.kind) return false;
-    return issuePassesExceptKind(it, f);
+    return issuePasses(it, f);
   });
 }
 function csvCell(s){ s=String(s); return /[",\n]/.test(s)? '"'+s.replace(/"/g,'""')+'"' : s; }
 function exportDisabledCSV(){
   var f=state.summaryFilters; var rows=filterIssues(collectDisabledIssues(), f);
   var KINDCSV={node:"Disabled",market:"Market off",exclusion:"Re-enabled"};
-  var head=["Type","Level","Item","Channels","Location","Disabled by","When","Partner"];
+  var head=["Type","Entity","Level","Item","Channels","Location","Disabled by","When","Partner"];
   var lines=[head.join(",")].concat(rows.map(function(it){
     var au=issueAudit(it);
-    return [KINDCSV[it.kind]||it.kind, it.type, it.name, it.channels.join("|"), it.path, au.by, au.at, partnerName(state.partner)].map(csvCell).join(",");
+    return [KINDCSV[it.kind]||it.kind, entityOf(it), it.type, it.name, it.channels.join("|"), it.path, au.by, au.at, partnerName(state.partner)].map(csvCell).join(",");
   }));
   var blob=new Blob([lines.join("\n")], {type:"text/csv"});
   var url=URL.createObjectURL(blob); var a=document.createElement("a");
@@ -2244,19 +2253,14 @@ function disabledSummaryModal(){
   var f=state.summaryFilters;
   var all=collectDisabledIssues();
 
-  // counts for the kind tabs honour all the OTHER active filters
-  var baseForCounts=all.filter(function(it){ return issuePassesExceptKind(it,f); });
-  var cnt={all:baseForCounts.length, node:0, market:0, exclusion:0};
-  baseForCounts.forEach(function(it){ cnt[it.kind]++; });
-
   var rows=filterIssues(all, f);
 
-  var sportsPresent=Object.keys(all.reduce(function(a,it){a[it.sport]=1;return a;},{})).sort();
-  var sportOpts='<option value="">All sports</option>'+sportsPresent.map(function(s){ return '<option value="'+esc(s)+'"'+(f.sport===s?' selected':'')+'>'+esc(s)+'</option>'; }).join("");
-  var typeOpts='<option value="">All levels</option>'+["sport","category","tournament","event"].map(function(tp){ return '<option value="'+tp+'"'+(f.type===tp?' selected':'')+'>'+tp.charAt(0).toUpperCase()+tp.slice(1)+'</option>'; }).join("");
+  var ENT=[["sport","Sport"],["category","Category"],["tournament","Tournament"],["event","Event"],["market","Market"]];
+  var entityOpts='<option value="">All entities</option>'+ENT.map(function(o){ return '<option value="'+o[0]+'"'+(f.entity===o[0]?' selected':'')+'>'+o[1]+'</option>'; }).join("");
+  var levelOpts='<option value="">All levels</option>'+ENT.map(function(o){ return '<option value="'+o[0]+'"'+(f.level===o[0]?' selected':'')+'>'+o[1]+'</option>'; }).join("");
+  var usersPresent={}; all.forEach(function(it){ usersPresent[issueAudit(it).by]=1; });
+  var userOpts='<option value="">All users</option>'+Object.keys(usersPresent).sort().map(function(u){ return '<option value="'+esc(u)+'"'+(f.user===u?' selected':'')+'>'+esc(u)+'</option>'; }).join("");
 
-  var KIND_LABEL={all:"Everything",node:"Disabled",market:"Markets off",exclusion:"Re-enabled"};
-  function kindTab(k,label){ return '<button data-sum-kind="'+k+'" class="'+(f.kind===k?'on':'')+'">'+label+' <b>'+cnt[k]+'</b></button>'; }
   function chTab(c,label){ return '<button data-sum-ch="'+c+'" class="'+(f.channel===c?'on':'')+'">'+label+'</button>'; }
 
   var tagMap={sport:"SPT",category:"CAT",tournament:"TRN",event:"EVT",market:"MKT"};
@@ -2267,29 +2271,31 @@ function disabledSummaryModal(){
   }
   var CAP=300;
   var trs=rows.slice(0,CAP).map(function(it){
-    var tag=tagMap[it.type]||"";
+    var eTag=tagMap[entityOf(it)]||"", lTag=tagMap[levelOf(it)]||"";
     var chs=it.channels.map(function(c){ return '<span class="eff-badge '+(it.kind==='exclusion'?'eff-exc':'eff-off')+'">'+c+'</span>'; }).join(" ");
     var nameCell='<b>'+esc(it.name)+'</b>'+(it.kind!=='node'?' <span class="sub-muted">@ '+esc(it.node.name)+'</span>':'');
     var au=issueAudit(it);
-    return '<tr><td>'+kindBadge(it)+'</td><td><span class="dim-tag '+tag+'">'+tag+'</span></td><td>'+nameCell+'<div class="ppath">'+esc(it.path)+'</div></td><td class="c">'+chs+'</td><td class="sum-who">'+esc(au.by)+'</td><td class="sum-when">'+esc(au.at)+'</td></tr>';
+    return '<tr><td>'+kindBadge(it)+'</td><td><span class="dim-tag '+eTag+'">'+eTag+'</span></td><td><span class="dim-tag '+lTag+'">'+lTag+'</span></td><td>'+nameCell+'<div class="ppath">'+esc(it.path)+'</div></td><td class="c">'+chs+'</td><td class="sum-who">'+esc(au.by)+'</td><td class="sum-when">'+esc(au.at)+'</td></tr>';
   }).join("");
-  var tableBody = rows.length? trs : '<tr><td colspan="6"><div class="empty-state">Nothing matches these filters.</div></td></tr>';
+  var tableBody = rows.length? trs : '<tr><td colspan="7"><div class="empty-state">Nothing matches these filters.</div></td></tr>';
   var moreNote = rows.length>CAP ? '<div class="sub-muted" style="padding:8px 2px">Showing first '+CAP+' of '+rows.length+' — narrow the filters to see the rest.</div>' : '';
 
-  var active = (f.kind!=="all"||f.sport||f.type||f.channel!=="both"||f.q);
+  var active = (f.entity||f.level||f.channel!=="both"||f.user||f.dateFrom||f.dateTo||f.q);
   var filterBar='<div class="sum-filters">'
-    + '<div class="sum-fgroup"><span class="sum-flabel">Show</span><div class="seg">'+kindTab("all","Everything")+kindTab("node","Disabled")+kindTab("market","Markets off")+kindTab("exclusion","Re-enabled")+'</div></div>'
+    + '<div class="sum-fgroup"><span class="sum-flabel">Disabled entity</span><select class="input" id="sum-entity" style="min-width:140px">'+entityOpts+'</select></div>'
+    + '<div class="sum-fgroup"><span class="sum-flabel">Level</span><select class="input" id="sum-level" style="min-width:140px">'+levelOpts+'</select></div>'
     + '<div class="sum-fgroup"><span class="sum-flabel">Channel</span><div class="seg">'+chTab("both","Both")+chTab("live","Live")+chTab("prematch","Prematch")+'</div></div>'
-    + '<div class="sum-fgroup"><span class="sum-flabel">Sport</span><select class="input" id="sum-sport" style="min-width:150px">'+sportOpts+'</select></div>'
-    + '<div class="sum-fgroup"><span class="sum-flabel">Level</span><select class="input" id="sum-type" style="min-width:130px">'+typeOpts+'</select></div>'
-    + '<div class="sum-fgroup" style="flex:1; min-width:200px"><span class="sum-flabel">Search</span><input class="search-box" id="sum-search" placeholder="Name or location…" value="'+esc(f.q)+'" style="width:100%; max-width:none"></div>'
+    + '<div class="sum-fgroup"><span class="sum-flabel">From</span><input class="input" type="date" id="sum-date-from" value="'+esc(f.dateFrom)+'"></div>'
+    + '<div class="sum-fgroup"><span class="sum-flabel">To</span><input class="input" type="date" id="sum-date-to" value="'+esc(f.dateTo)+'"></div>'
+    + '<div class="sum-fgroup"><span class="sum-flabel">User</span><select class="input" id="sum-user" style="min-width:130px">'+userOpts+'</select></div>'
+    + '<div class="sum-fgroup" style="flex:1; min-width:180px"><span class="sum-flabel">Search</span><input class="search-box" id="sum-search" placeholder="Name or location…" value="'+esc(f.q)+'" style="width:100%; max-width:none"></div>'
     + (active?'<div class="sum-fgroup" style="align-self:flex-end"><button class="btn sm" id="sum-reset">Reset</button></div>':'')
   + '</div>';
 
   var body = '<div class="info-banner">⚠️ Everything currently switched off for <b>'+esc(partnerName(partner))+'</b> across Live &amp; Prematch. Review before going live.</div>'
     + filterBar
-    + '<div class="sum-stat"><b>'+rows.length+'</b> result'+(rows.length===1?'':'s')+' &nbsp;·&nbsp; '+cnt.node+' disabled &nbsp;·&nbsp; '+cnt.market+' market'+(cnt.market===1?'':'s')+' off &nbsp;·&nbsp; '+cnt.exclusion+' re-enabled</div>'
-    + '<table class="grid sum-table"><thead><tr><th style="width:110px">Type</th><th style="width:46px">Level</th><th>Item &amp; location</th><th class="c" style="width:120px">Channels</th><th style="width:120px">Disabled by</th><th style="width:160px">When</th></tr></thead><tbody>'+tableBody+'</tbody></table>'
+    + '<div class="sum-stat"><b>'+rows.length+'</b> result'+(rows.length===1?'':'s')+(active?' (filtered from '+all.length+')':'')+'</div>'
+    + '<table class="grid sum-table"><thead><tr><th style="width:104px">Type</th><th style="width:52px">Entity</th><th style="width:52px">Level</th><th>Item &amp; location</th><th class="c" style="width:112px">Channels</th><th style="width:118px">Disabled by</th><th style="width:158px">When</th></tr></thead><tbody>'+tableBody+'</tbody></table>'
     + moreNote;
 
   return shell('What’s Disabled — '+esc(partnerName(partner)), 'Effective coverage audit · Live + Prematch', body,
@@ -2498,7 +2504,7 @@ root.addEventListener("click", function(e){
   var ageb=t.closest("[data-age]"); if(ageb){ state.modal={type:"age",nodeId:ageb.getAttribute("data-age")}; render(); return; }
   if(t.closest("#open-age-cov")){ state.modal={type:"age-cov"}; render(); return; }
   if(t.closest("#agp-new-group")){ state.modal={type:"age-new", name:""}; render(); return; }
-  if(t.closest("#open-disabled-summary")){ state.summaryFilters={q:"",kind:"all",sport:"",type:"",channel:"both"}; state.modal={type:"disabled-summary"}; render(); return; }
+  if(t.closest("#open-disabled-summary")){ state.summaryFilters={q:"",entity:"",level:"",channel:"both",dateFrom:"",dateTo:"",user:""}; state.modal={type:"disabled-summary"}; render(); return; }
 
   // per-entity settings (gear)
   var gear=t.closest("[data-settings]"); if(gear){ state.modal={type:"settings", nodeId:gear.getAttribute("data-settings"), section:"market-priority"}; render(); return; }
@@ -2614,9 +2620,8 @@ modalRoot.addEventListener("click", function(e){
   var dc=t.closest("[data-del-confirm]"); if(dc){ deleteTemplate(dc.getAttribute("data-del-confirm")); state.modal=null; render(); return; }
 
   // disabled-summary filters
-  var sk=t.closest("[data-sum-kind]"); if(sk){ state.summaryFilters.kind=sk.getAttribute("data-sum-kind"); render(); return; }
   var sc=t.closest("[data-sum-ch]"); if(sc){ state.summaryFilters.channel=sc.getAttribute("data-sum-ch"); render(); return; }
-  if(t.id==="sum-reset"){ e.preventDefault(); state.summaryFilters={q:"",kind:"all",sport:"",type:"",channel:"both"}; render(); return; }
+  if(t.id==="sum-reset"){ e.preventDefault(); state.summaryFilters={q:"",entity:"",level:"",channel:"both",dateFrom:"",dateTo:"",user:""}; render(); return; }
   if(t.id==="sum-export"){ exportDisabledCSV(); return; }
 
   // providers
@@ -2665,8 +2670,11 @@ modalRoot.addEventListener("input", function(e){
   if(e.target.id==="age-new-input"){ state.modal.name=e.target.value; render(); var eln=document.getElementById("age-new-input"); if(eln){eln.focus(); var vn=eln.value; eln.setSelectionRange(vn.length,vn.length);} return; }
 });
 modalRoot.addEventListener("change", function(e){
-  if(e.target.id==="sum-sport"){ state.summaryFilters.sport=e.target.value; render(); return; }
-  if(e.target.id==="sum-type"){ state.summaryFilters.type=e.target.value; render(); return; }
+  if(e.target.id==="sum-entity"){ state.summaryFilters.entity=e.target.value; render(); return; }
+  if(e.target.id==="sum-level"){ state.summaryFilters.level=e.target.value; render(); return; }
+  if(e.target.id==="sum-user"){ state.summaryFilters.user=e.target.value; render(); return; }
+  if(e.target.id==="sum-date-from"){ state.summaryFilters.dateFrom=e.target.value; render(); return; }
+  if(e.target.id==="sum-date-to"){ state.summaryFilters.dateTo=e.target.value; render(); return; }
   if(e.target.classList && e.target.classList.contains("mp-prio")){ var v=parseInt(e.target.value,10); if(!isNaN(v)) setMarketPrioPos(NODES[state.modal.nodeId], e.target.getAttribute("data-mp-prio-key"), v); render(); return; }
 });
 modalRoot.addEventListener("keydown", function(e){ if(e.key==="Enter" && e.target.classList && e.target.classList.contains("mp-prio")){ e.preventDefault(); var v=parseInt(e.target.value,10); if(!isNaN(v)) setMarketPrioPos(NODES[state.modal.nodeId], e.target.getAttribute("data-mp-prio-key"), v); render(); } });
