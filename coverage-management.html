@@ -1678,7 +1678,8 @@ function shell(title, sub, body, foot, wide){
 /* --- feed providers --- */
 function providerEditorBody(node){
   var partner = state.partner;
-  var list = (node.providers[partner]||[]).slice();
+  var draftMode = state.modal && state.modal.type==="providers" && state.modal.draft;
+  var list = draftMode ? state.modal.draft.slice() : (node.providers[partner]||[]).slice();
   var inh=null, p=node.parentId; while(p){ if(NODES[p].providers[partner]){ inh={node:NODES[p], list:NODES[p].providers[partner]}; break;} p=NODES[p].parentId; }
   var rows = list.length? list.map(function(name,i){
     return '<div class="prov-row">'
@@ -1702,7 +1703,7 @@ function providerModal(node){
   return shell('Feed Providers — '+esc(node.name),
     esc(node.type.toUpperCase())+' · '+esc(pathLabel(node)),
     body,
-    '<span class="sub-muted spacer">Changes are mock-only in this prototype</span><button class="btn primary" id="modal-close">Done</button>');
+    '<span class="sub-muted spacer">Priority is per client · inherited downward unless overridden</span><button class="btn" id="modal-close">Cancel</button><button class="btn primary" id="prov-save">Save</button>');
 }
 
 /* --- markets / exclusions modal --- */
@@ -2187,7 +2188,7 @@ root.addEventListener("click", function(e){
   var jt=t.closest("[data-jump]"); if(jt){ selectInColumns(NODES[jt.getAttribute("data-jump")]); render(); return; }
 
   // open modals
-  var pv=t.closest("[data-providers]"); if(pv){ state.modal={type:"providers",nodeId:pv.getAttribute("data-providers")}; render(); return; }
+  var pv=t.closest("[data-providers]"); if(pv){ var pvn=NODES[pv.getAttribute("data-providers")]; state.modal={type:"providers",nodeId:pvn.id, draft:(pvn.providers[state.partner]||[]).slice()}; render(); return; }
   var mkb=t.closest("[data-markets]"); if(mkb){ state.modal={type:"markets",nodeId:mkb.getAttribute("data-markets")}; render(); return; }
   var tmb=t.closest("[data-template]"); if(tmb){ state.modalTab=0; state.modal={type:"template",nodeId:tmb.getAttribute("data-template")}; render(); return; }
   var tmpls=t.closest("[data-templates]"); if(tmpls){ state.modal={type:"templates",nodeId:tmpls.getAttribute("data-templates")}; render(); return; }
@@ -2318,6 +2319,7 @@ modalRoot.addEventListener("click", function(e){
   var pd=t.closest("[data-prov-down]"); if(pd){ provMove(parseInt(pd.getAttribute("data-prov-down"),10),1); return; }
   var px=t.closest("[data-prov-del]"); if(px){ provDel(parseInt(px.getAttribute("data-prov-del"),10)); return; }
   if(t.id==="prov-add-btn"){ provAdd(); return; }
+  if(t.id==="prov-save"){ provSave(); return; }
 
   // market rules
   var mr=t.closest("[data-mr]"); if(mr){
@@ -2357,9 +2359,13 @@ modalRoot.addEventListener("dragstart", function(e){ var r=e.target.closest("[da
 modalRoot.addEventListener("dragover", function(e){ if(dragMp){ var r=e.target.closest("[data-mp-key]"); if(r){ e.preventDefault(); e.dataTransfer.dropEffect="move"; var rc=r.getBoundingClientRect(); setDropLine(r, e.clientY>rc.top+rc.height/2); } } });
 modalRoot.addEventListener("drop", function(e){ clearDropLine(); if(!dragMp)return; var r=e.target.closest("[data-mp-key]"); if(r){ e.preventDefault(); var tk=r.getAttribute("data-mp-key"); if(tk!==dragMp){ var rc=r.getBoundingClientRect(); dropMarketPrio(NODES[state.modal.nodeId], dragMp, tk, e.clientY>rc.top+rc.height/2); } } dragMp=null; render(); });
 modalRoot.addEventListener("dragend", function(){ clearDropLine(); if(dragMp){ dragMp=null; render(); } });
-function provMove(i,d){ var n=NODES[state.modal.nodeId]; var arr=(n.providers[state.partner]||[]).slice(); var j=i+d; if(j<0||j>=arr.length)return; var tmp=arr[i];arr[i]=arr[j];arr[j]=tmp; n.providers[state.partner]=arr; render(); }
-function provDel(i){ var n=NODES[state.modal.nodeId]; var arr=(n.providers[state.partner]||[]).slice(); arr.splice(i,1); n.providers[state.partner]=arr; render(); }
-function provAdd(){ var sel=document.getElementById("prov-add-sel"); if(!sel||!sel.value)return; var n=NODES[state.modal.nodeId]; var arr=(n.providers[state.partner]||[]).slice(); arr.push(sel.value); n.providers[state.partner]=arr; render(); }
+function provDraftMode(){ return state.modal && state.modal.type==="providers" && state.modal.draft; }
+function provGet(n){ return (provDraftMode()? state.modal.draft : (n.providers[state.partner]||[])).slice(); }
+function provSet(n,arr){ if(provDraftMode()) state.modal.draft=arr; else n.providers[state.partner]=arr; }
+function provMove(i,d){ var n=NODES[state.modal.nodeId]; var arr=provGet(n); var j=i+d; if(j<0||j>=arr.length)return; var tmp=arr[i];arr[i]=arr[j];arr[j]=tmp; provSet(n,arr); render(); }
+function provDel(i){ var n=NODES[state.modal.nodeId]; var arr=provGet(n); arr.splice(i,1); provSet(n,arr); render(); }
+function provAdd(){ var sel=document.getElementById("prov-add-sel"); if(!sel||!sel.value)return; var n=NODES[state.modal.nodeId]; var arr=provGet(n); arr.push(sel.value); provSet(n,arr); render(); }
+function provSave(){ var n=NODES[state.modal.nodeId]; var arr=(state.modal.draft||[]).slice(); if(arr.length) n.providers[state.partner]=arr; else delete n.providers[state.partner]; state.modal=null; render(); }
 
 document.addEventListener("keydown", function(e){ if(e.key==="Escape" && state.modal){ state.modal=null; render(); } });
 
