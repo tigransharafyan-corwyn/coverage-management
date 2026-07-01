@@ -1123,12 +1123,32 @@ function setMarketChannel(levelNode, key, ch, desiredOn){
   else { if(inh==='off') delete levelNode.marketRules[key][ch]; else levelNode.marketRules[key][ch]='off'; }
   if(Object.keys(levelNode.marketRules[key]).length===0) delete levelNode.marketRules[key];
 }
+// display state for a market toggle at a level node — mirrors node toggles:
+//   posOn  = market is on at THIS level (default on unless explicitly turned off here)
+//   orange = it's on here but a parent/ancestor disabled it (Parent Off)
+function marketDisp(levelNode, key, ch){
+  var parentState = inheritedMarketState(levelNode, key, ch);   // ancestors only
+  var ownRule = levelNode.marketRules[key] && levelNode.marketRules[key][ch]; // 'on'|'off'|undefined
+  var ownOn = ownRule !== 'off';         // markets default on unless explicitly off at this level
+  var parentOff = parentState === 'off';
+  return { posOn: ownOn, orange: ownOn && parentOff, parentOff: parentOff };
+}
+// flip a market's OWN state at a level node, keeping rules minimal
+function toggleMarketOwn(node, key, ch, desiredOn){
+  if(!node.marketRules[key]) node.marketRules[key]={};
+  if(desiredOn){
+    var parent=inheritedMarketState(node, key, ch);
+    if(parent==='on') delete node.marketRules[key][ch];   // default on — no rule needed
+    else node.marketRules[key][ch]='on';                  // re-enable over a parent-off
+  } else {
+    node.marketRules[key][ch]='off';                      // explicit off at this level
+  }
+  if(node.marketRules[key] && Object.keys(node.marketRules[key]).length===0) delete node.marketRules[key];
+}
 // a market on/off switch bound to a level node (writes that node's marketRules)
 function marketSwitch(levelNode, key, ch){
-  var eff=effMarket(levelNode, key, ch);
-  var on = eff.state==='on';
-  var exc = on && eff.excluded;
-  return '<span class="sw mini '+(on?'on':'')+(exc?' inherited-off':'')+'" data-ch="'+ch+'" data-mkt-ch="'+ch+'" data-mkt-key="'+key+'" data-mkt-node="'+levelNode.id+'" title="'+(exc?'Exclusion — market is off at a higher level but re-enabled here':(on?'Disable':'Enable')+' this market on '+ch)+'"><span class="track"></span></span>';
+  var d=marketDisp(levelNode, key, ch);
+  return '<span class="sw mini '+(d.posOn?'on':'')+(d.orange?' inherited-off':'')+'" data-ch="'+ch+'" data-mkt-ch="'+ch+'" data-mkt-key="'+key+'" data-mkt-node="'+levelNode.id+'" title="'+(d.orange?'On here but disabled at a higher level (Parent Off)':(d.posOn?'Disable':'Enable')+' this market on '+ch)+'"><span class="track"></span></span>';
 }
 
 function mcolHtml(col){
@@ -1965,18 +1985,18 @@ function settingsModal(node){
     var mpq=(state.modal.mpq||"").toLowerCase();
     var shownK = keys.map(function(k,i){ return {k:k, no:i+1}; }).filter(function(o){ return !mpq || marketLabelFor(sport,o.k).toLowerCase().indexOf(mpq)!==-1; });
     var rows= shownK.length? shownK.map(function(o){ var k=o.k, no=o.no;
-      var lE=effMarket(node,k,'live'), pE=effMarket(node,k,'prematch');
-      var lv=lE.state==='on', pr=pE.state==='on';
-      var lExc=lv&&lE.excluded, pExc=pr&&pE.excluded;
+      var lD=marketDisp(node,k,'live'), pD=marketDisp(node,k,'prematch');
+      var lv=lD.posOn, pr=pD.posOn;
+      var lExc=lD.orange, pExc=pD.orange;
       return '<div class="mp-row" draggable="true" data-mp-key="'+k+'">'
         + '<span class="drag" title="Drag to reorder">⠿</span>'
         + '<div class="spin"><input class="spin-in mp-prio" type="text" inputmode="numeric" value="'+no+'" data-mp-prio-key="'+k+'">'
           + '<div class="spin-btns"><button data-mp-dir="up" data-mp-key="'+k+'" '+(no<=1?'disabled':'')+'>▲</button>'
           + '<button data-mp-dir="down" data-mp-key="'+k+'" '+(no>=total?'disabled':'')+'>▼</button></div></div>'
-        + '<span class="mp-name">'+esc(marketLabelFor(sport,k))+(lExc||pExc?' <span class="excl-tag" title="Re-enabled below a level that disabled it">EXCLUSION</span>':'')+'</span>'
+        + '<span class="mp-name">'+esc(marketLabelFor(sport,k))+(lExc||pExc?' <span class="excl-tag" title="On here but disabled at a higher level">PARENT OFF</span>':'')+'</span>'
         + '<span class="mc-ch">'
-          + '<span class="ch-lbl live">L</span><span class="sw mini '+(lv?'on':'')+(lExc?' inherited-off':'')+'" data-ch="live" data-mp-toggle data-mp-tkey="'+k+'" data-mp-tch="live" title="'+(lExc?'Exclusion — market is off at a higher level but re-enabled here':(lv?'Disable':'Enable')+' live')+'"><span class="track"></span></span>'
-          + '<span class="ch-lbl pre">P</span><span class="sw mini '+(pr?'on':'')+(pExc?' inherited-off':'')+'" data-ch="prematch" data-mp-toggle data-mp-tkey="'+k+'" data-mp-tch="prematch" title="'+(pExc?'Exclusion — market is off at a higher level but re-enabled here':(pr?'Disable':'Enable')+' prematch')+'"><span class="track"></span></span>'
+          + '<span class="ch-lbl live">L</span><span class="sw mini '+(lv?'on':'')+(lExc?' inherited-off':'')+'" data-ch="live" data-mp-toggle data-mp-tkey="'+k+'" data-mp-tch="live" title="'+(lExc?'On here but disabled at a higher level (Parent Off)':(lv?'Disable':'Enable')+' live')+'"><span class="track"></span></span>'
+          + '<span class="ch-lbl pre">P</span><span class="sw mini '+(pr?'on':'')+(pExc?' inherited-off':'')+'" data-ch="prematch" data-mp-toggle data-mp-tkey="'+k+'" data-mp-tch="prematch" title="'+(pExc?'On here but disabled at a higher level (Parent Off)':(pr?'Disable':'Enable')+' prematch')+'"><span class="track"></span></span>'
         + '</span>'
       + '</div>';
     }).join("") : '<div class="sub-muted" style="padding:14px; text-align:center">No markets match “'+esc(state.modal.mpq||"")+'”.</div>';
@@ -2303,7 +2323,7 @@ root.addEventListener("click", function(e){
   var fdr=t.closest("[data-fd-row]"); if(fdr && !t.closest("[data-providers]")){ var fn=NODES[fdr.getAttribute("data-fd-row")]; state.fdSel={}; var ch=ancestors(fn).concat(fn); var pk="root"; ch.forEach(function(n){ state.fdSel[pk]=n.id; pk=n.id; }); render(); return; }
 
   // market enable/disable toggle (writes to the level node's market rules)
-  var msw=t.closest("[data-mkt-key]"); if(msw){ var mn=NODES[msw.getAttribute("data-mkt-node")]; var mk=msw.getAttribute("data-mkt-key"); var mch=msw.getAttribute("data-mkt-ch"); var curOn=effMarket(mn,mk,mch).state==='on'; setMarketChannel(mn,mk,mch,!curOn); render(); return; }
+  var msw=t.closest("[data-mkt-key]"); if(msw){ var mn=NODES[msw.getAttribute("data-mkt-node")]; var mk=msw.getAttribute("data-mkt-key"); var mch=msw.getAttribute("data-mkt-ch"); toggleMarketOwn(mn,mk,mch, !marketDisp(mn,mk,mch).posOn); render(); return; }
 
   // channel toggle (mini switch or details switch)
   var sw=t.closest("[data-toggle]"); if(sw){ var n=NODES[sw.getAttribute("data-toggle")]; var ch=sw.getAttribute("data-ch"); setChannelCascade(n,ch,!n[ch].enabled); render(); return; }
@@ -2415,7 +2435,7 @@ modalRoot.addEventListener("click", function(e){
   // settings: section switch + market-priority arrows
   var ss=t.closest("[data-settings-section]"); if(ss){ state.modal.section=ss.getAttribute("data-settings-section"); state.modal.confirmUnassign=false; render(); return; }
   var mpd=t.closest("[data-mp-dir]"); if(mpd){ moveMarketPrio(NODES[state.modal.nodeId], mpd.getAttribute("data-mp-key"), mpd.getAttribute("data-mp-dir")); render(); return; }
-  var mpt=t.closest("[data-mp-toggle]"); if(mpt){ var mpn=NODES[state.modal.nodeId]; var mtk=mpt.getAttribute("data-mp-tkey"); var mtc=mpt.getAttribute("data-mp-tch"); setMarketChannel(mpn, mtk, mtc, !(effMarket(mpn,mtk,mtc).state==='on')); render(); return; }
+  var mpt=t.closest("[data-mp-toggle]"); if(mpt){ var mpn=NODES[state.modal.nodeId]; var mtk=mpt.getAttribute("data-mp-tkey"); var mtc=mpt.getAttribute("data-mp-tch"); toggleMarketOwn(mpn, mtk, mtc, !marketDisp(mpn,mtk,mtc).posOn); render(); return; }
 
   // settings: edit a template (opens the template form)
   var sed=t.closest("[data-stpl-edit]"); if(sed){ var setpl=TEMPLATES[sed.getAttribute("data-stpl-edit")]; if(setpl){ state.modal={type:"template-form", mode:"edit", templateId:setpl.id, sport:setpl.sport, name:setpl.name, avail:JSON.parse(JSON.stringify(setpl.avail||{})), mq:""}; } render(); return; }
