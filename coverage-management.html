@@ -184,6 +184,9 @@
   .pbadge:hover{ border-color:var(--accent);}
   .pbadge .prio { background:var(--accent); color:#fff; border-radius:4px; padding:0 5px; font-size:9.5px; font-weight:700;}
   .plogo { display:inline-flex; align-items:center; justify-content:center; width:18px; height:18px; border-radius:5px; color:#fff; font-size:9px; font-weight:800; letter-spacing:.2px; flex-shrink:0; }
+  .plogo-wrap { display:inline-flex; align-items:center; }
+  .plogo-img { width:18px; height:18px; border-radius:4px; object-fit:contain; background:#fff; border:1px solid var(--border); flex-shrink:0; }
+  .prov-row .plogo-img, .prov-row .plogo { width:22px; height:22px; }
   .tmpl-badge { display:inline-flex; align-items:center; gap:5px; padding:3px 8px; border-radius:6px; font-size:11px; font-weight:600; cursor:pointer; border:1px solid var(--border);}
   .tmpl-badge.set{ background:var(--accent-soft); border-color:var(--accent); color:var(--accent);}
   .tmpl-badge.none{ background:#fff; color:var(--muted);}
@@ -504,16 +507,23 @@ var PARTNERS = [
 ];
 var PROVIDERS = ["Betradar","BetGenius","LSports","OddsMatrix","TXOdds","Internal Trading","BetConstruct","Stats Perform"];
 var PROVIDER_LOGO = {
-  "Betradar":{c:"#12824a",t:"BR"},
-  "BetGenius":{c:"#6d28d9",t:"BG"},
-  "LSports":{c:"#2f6df6",t:"LS"},
-  "OddsMatrix":{c:"#e8590c",t:"OM"},
-  "TXOdds":{c:"#0891b2",t:"TX"},
+  "Betradar":{c:"#12824a",t:"BR",domain:"sportradar.com"},
+  "BetGenius":{c:"#6d28d9",t:"BG",domain:"geniussports.com"},
+  "LSports":{c:"#2f6df6",t:"LS",domain:"lsports.eu"},
+  "OddsMatrix":{c:"#e8590c",t:"OM",domain:"oddsmatrix.com"},
+  "TXOdds":{c:"#0891b2",t:"TX",domain:"txodds.com"},
   "Internal Trading":{c:"#475569",t:"IT"},
-  "BetConstruct":{c:"#d23f3f",t:"BC"},
-  "Stats Perform":{c:"#1e3a8a",t:"SP"}
+  "BetConstruct":{c:"#d23f3f",t:"BC",domain:"betconstruct.com"},
+  "Stats Perform":{c:"#1e3a8a",t:"SP",domain:"statsperform.com"}
 };
-function provLogo(name){ var g=PROVIDER_LOGO[name]||{c:"#69788c",t:(name||"?").slice(0,2).toUpperCase()}; return '<span class="plogo" style="background:'+g.c+'">'+esc(g.t)+'</span>'; }
+// Real logo via favicon/logo service by domain; monogram is the offline fallback (onerror).
+function provLogo(name){
+  var g=PROVIDER_LOGO[name]||{};
+  var color=g.c||"#69788c", txt=g.t||(name||"?").slice(0,2).toUpperCase();
+  var mono='<span class="plogo" style="'+(g.domain?'display:none;':'')+'background:'+color+'">'+esc(txt)+'</span>';
+  if(!g.domain) return mono;
+  return '<span class="plogo-wrap"><img class="plogo-img" src="https://www.google.com/s2/favicons?sz=64&domain='+g.domain+'" alt="'+esc(name)+'" title="'+esc(name)+'" onerror="this.style.display=\'none\';this.nextSibling.style.display=\'inline-flex\'">'+mono+'</span>';
+}
 var AGE_GROUPS = ["Senior","U23","U21","U19","U17","Women","Youth","Amateur","Reserve"];
 var COUNTRIES = ["Brazil","Nigeria","Germany","United Kingdom","France","Italy","Spain","Portugal","Netherlands","USA","India","Kenya","Ghana","Argentina","Mexico","Turkey"];
 
