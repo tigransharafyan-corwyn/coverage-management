@@ -385,6 +385,8 @@
   .mt-head .twisty { color:var(--muted); }
   .nt-bulk { display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-bottom:10px; }
   .nt-bulk .ch-lbl { width:auto; }
+  .tpl-bulk-row { display:flex; align-items:center; gap:6px; flex-wrap:wrap; padding:8px 12px; border-bottom:1px solid var(--border); background:var(--bg); position:sticky; top:0; z-index:1; }
+  .tpl-bulk-row .ch-lbl { width:auto; }
 
   .tpl-detail-bar { display:flex; align-items:center; gap:8px; padding:8px 10px; border-bottom:1px solid var(--border); }
   .tpl-detail-bar .mg-name { border:1px solid transparent; background:transparent; font-size:13px; font-weight:650; color:var(--text); border-radius:6px; padding:5px 7px; font-family:inherit; }
@@ -868,6 +870,7 @@ var state = {
   mtTplSel: null,            // market-templates: selected template id (column 2)
   mtTplSearch: "",           // market-templates: template search (column 2)
   mtMkQ: "",                 // market-templates: market search (column 3)
+  mtSportSearch: "",         // market-templates: sport search (column 1)
   mgSport: "",               // market-groups page: selected sport
   mgSportOpen: false,        // market-groups page: sport dropdown open
   mgAddOpen: null,           // market-groups page: group id whose add-market menu is open
@@ -1357,11 +1360,16 @@ function marketTemplatesMainHtml(){
   if(!state.mtTplSel || !TEMPLATES[state.mtTplSel] || TEMPLATES[state.mtTplSel].sport!==sport) state.mtTplSel = tmpls.length? tmpls[0].id : null;
   var selT = state.mtTplSel? TEMPLATES[state.mtTplSel] : null;
 
-  // Column 1 — Sports
-  var sportRows=sortedChildren(null).map(function(sp){ var on=sp.name===sport;
+  // Column 1 — Sports (searchable)
+  var sq=(state.mtSportSearch||"").toLowerCase();
+  var spAll=sortedChildren(null);
+  var spShown = sq? spAll.filter(function(sp){ return sp.name.toLowerCase().indexOf(sq)!==-1; }) : spAll;
+  var sportRows=spShown.length? spShown.map(function(sp){ var on=sp.name===sport;
     return '<div class="mcol-row'+(on?' sel':'')+'" data-mt-sport-sel="'+esc(sp.name)+'"><span class="mc-main"><span class="mc-ic">'+iconFor(sp)+'</span><span class="mc-name">'+esc(sp.name)+'</span><span class="mc-cnt">'+templatesForSport(sp.name).length+'</span></span><span class="mc-chev">'+CHEVRON+'</span></div>';
-  }).join("");
-  var col1='<div class="mcol" data-col="mt-sports"><div class="mcol-head"><span class="lv">Sports</span><span class="cnt">'+ROOT_IDS.length+'</span></div><div class="mcol-body">'+sportRows+'</div></div>';
+  }).join("") : '<div class="sub-muted" style="padding:14px; text-align:center">No sports match.</div>';
+  var col1='<div class="mcol" data-col="mt-sports"><div class="mcol-head"><span class="lv">Sports</span><span class="cnt">'+ROOT_IDS.length+'</span></div>'
+    + '<div class="mcol-search"><input class="mcol-search-in" id="mt-sport-search" data-mt-sport-search placeholder="Search sports…" value="'+esc(state.mtSportSearch||"")+'"></div>'
+    + '<div class="mcol-body">'+sportRows+'</div></div>';
 
   // Column 2 — Templates (searchable)
   var tq=(state.mtTplSearch||"").toLowerCase();
@@ -1370,7 +1378,9 @@ function marketTemplatesMainHtml(){
       allMk.forEach(function(m){ var a=tmplAvail(t,m.key); if(a.live||a.prematch)inc++; });
       return '<div class="mcol-row'+(on?' sel':'')+'" data-mt-tpl-sel="'+t.id+'"><span class="mc-main"><span class="mc-name">'+esc(t.name)+'</span><span class="mc-cnt">'+inc+'</span></span><button class="icon-btn" data-mt-del="'+t.id+'" title="Delete template">✕</button><span class="mc-chev">'+CHEVRON+'</span></div>';
     }).join("") : '<div class="sub-muted" style="padding:14px; text-align:center">No templates'+(tq?' match':'')+'.</div>';
-  var col2='<div class="mcol" data-col="mt-tpls"><div class="mcol-head"><span class="lv">Templates</span><span class="cnt">'+tmpls.length+'</span><span class="spacer"></span><button class="btn sm primary" data-mt-new>+ New</button></div>'
+  var col2='<div class="mcol" data-col="mt-tpls"><div class="mcol-head"><span class="lv">Templates</span><span class="cnt">'+tmpls.length+'</span><span class="spacer"></span>'
+    + (selT? '<button class="btn sm" data-mt-clone="'+selT.id+'">Clone</button><button class="btn sm" data-mt-assign="'+selT.id+'">Assign…</button>' : '')
+    + '<button class="btn sm primary" data-mt-new>+ New</button></div>'
     + '<div class="mcol-search"><input class="mcol-search-in" id="mt-tpl-search" data-mt-tpl-search placeholder="Search templates…" value="'+esc(state.mtTplSearch||"")+'"></div>'
     + '<div class="mcol-body">'+tplRows+'</div></div>';
 
@@ -1387,14 +1397,12 @@ function marketTemplatesMainHtml(){
         + '<span class="ch-lbl pre">P</span><span class="sw mini '+(a.prematch?'on':'')+'" data-ch="prematch" data-tpl-toggle="'+selT.id+'" data-tpl-key="'+m.key+'" data-tpl-ch="prematch"><span class="track"></span></span></span>'
       + '</div>';
     }).join("") : '<div class="sub-muted" style="padding:14px; text-align:center">No markets match.</div>';
+    var bulkRow = '<div class="tpl-bulk-row"><span class="sub-muted">Bulk:</span><span class="ch-lbl live">Live</span><button class="btn sm" data-tpl-bulk="on" data-tpl-bulk-ch="live" data-tpl-id="'+selT.id+'">All</button><button class="btn sm" data-tpl-bulk="off" data-tpl-bulk-ch="live" data-tpl-id="'+selT.id+'">None</button><span class="ch-lbl pre" style="margin-left:10px">Prematch</span><button class="btn sm" data-tpl-bulk="on" data-tpl-bulk-ch="prematch" data-tpl-id="'+selT.id+'">All</button><button class="btn sm" data-tpl-bulk="off" data-tpl-bulk-ch="prematch" data-tpl-id="'+selT.id+'">None</button></div>';
     col3body = '<div class="tpl-detail-bar">'
         + '<input class="mg-name" value="'+esc(selT.name)+'" data-mt-rename="'+selT.id+'" style="flex:1; min-width:0">'
-        + '<button class="btn sm" data-mt-clone="'+selT.id+'">Clone</button>'
-        + '<button class="btn sm" data-mt-assign="'+selT.id+'">Assign…</button>'
       + '</div>'
-      + '<div class="nt-bulk"><span class="sub-muted">Bulk:</span><span class="ch-lbl live">Live</span><button class="btn sm" data-tpl-bulk="on" data-tpl-bulk-ch="live" data-tpl-id="'+selT.id+'">All</button><button class="btn sm" data-tpl-bulk="off" data-tpl-bulk-ch="live" data-tpl-id="'+selT.id+'">None</button><span class="ch-lbl pre" style="margin-left:10px">Prematch</span><button class="btn sm" data-tpl-bulk="on" data-tpl-bulk-ch="prematch" data-tpl-id="'+selT.id+'">All</button><button class="btn sm" data-tpl-bulk="off" data-tpl-bulk-ch="prematch" data-tpl-id="'+selT.id+'">None</button></div>'
       + '<div class="mcol-search"><input class="mcol-search-in" id="mt-mk-search" data-mt-mk-search placeholder="Search markets…" value="'+esc(state.mtMkQ||"")+'"></div>'
-      + '<div class="mcol-body">'+mkRows+'</div>';
+      + '<div class="mcol-body">'+bulkRow+mkRows+'</div>';
   } else {
     col3body='<div class="mcol-body"><div class="sub-muted" style="padding:14px; text-align:center">Select or create a template.</div></div>';
   }
@@ -2196,6 +2204,7 @@ root.addEventListener("change", function(e){
 });
 
 root.addEventListener("input", function(e){
+  if(e.target.id==="mt-sport-search"){ state.mtSportSearch=e.target.value; render(); var els=document.getElementById("mt-sport-search"); if(els){els.focus(); var vs=els.value; els.setSelectionRange(vs.length,vs.length);} return; }
   if(e.target.id==="mt-tpl-search"){ state.mtTplSearch=e.target.value; render(); var elt=document.getElementById("mt-tpl-search"); if(elt){elt.focus(); var vt=elt.value; elt.setSelectionRange(vt.length,vt.length);} return; }
   if(e.target.id==="mt-mk-search"){ state.mtMkQ=e.target.value; render(); var elm=document.getElementById("mt-mk-search"); if(elm){elm.focus(); var vm=elm.value; elm.setSelectionRange(vm.length,vm.length);} return; }
   if(e.target.id==="mg-mk-search"){ state.mgMkQ=e.target.value; render(); var elk=document.getElementById("mg-mk-search"); if(elk){elk.focus(); var vk=elk.value; elk.setSelectionRange(vk.length,vk.length);} return; }
