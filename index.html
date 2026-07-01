@@ -656,6 +656,43 @@ function makeNode(type, name, parentId, sport){
   return node;
 }
 
+/* ~3x more coverage: extra real categories & tournaments merged into SPORT_TREE */
+var EXTRA_TREE = {
+  "Football": { "England":["EFL Cup","Community Shield","National League","Women's Super League"], "Spain":["Supercopa de España","Segunda División","La Liga F"], "Italy":["Supercoppa Italiana","Serie C","Primavera 1"], "Germany":["3. Liga","DFL-Supercup","Regionalliga"], "France":["Coupe de France","Trophée des Champions","National"], "International":["UEFA Nations League","Copa Libertadores","Copa Sudamericana","AFC Champions League","CAF Champions League","CONCACAF Champions Cup"], "Brazil":["Copa Libertadores","Campeonato Paulista","Campeonato Carioca","Série B"], "Netherlands":["KNVB Beker","Eerste Divisie"], "Portugal":["Taça de Portugal","Liga Portugal 2","Taça da Liga"], "USA":["US Open Cup","Leagues Cup","MLS Next Pro"], "Argentina":["Liga Profesional","Copa Argentina","Primera Nacional"], "Mexico":["Liga MX","Liga de Expansión","Copa MX"], "Turkey":["Süper Lig","Türkiye Kupası","1. Lig"], "Belgium":["Pro League","Belgian Cup"], "Scotland":["Premiership","Scottish Cup"] },
+  "Basketball": { "USA":["NBA G League","NBA Summer League"], "Europe":["Basketball Champions League","EuroLeague Women"], "Spain":["Copa del Rey","Supercopa ACB"], "Italy":["Coppa Italia","Serie A2"], "Germany":["BBL Pokal","ProA"], "International":["FIBA AmeriCup","FIBA EuroBasket","Olympic Tournament"], "France":["LNB Pro A","Leaders Cup"], "Greece":["Greek Basket League","Greek Cup"], "Turkey":["Turkish Super League","Turkish Cup"], "Australia":["NBL"] },
+  "Tennis": { "ATP":["ATP Finals","Australian Open","Roland Garros","ATP Masters Rome","ATP Masters Cincinnati","ATP 250 Doha"], "WTA":["US Open","Wimbledon","WTA 1000 Beijing","WTA 500 Stuttgart","WTA 250 Hobart"], "Challenger":["Challenger Bordeaux","Challenger Turin"], "ITF":["ITF Monastir","ITF Heraklion"], "Mixed":["United Cup","Laver Cup","Davis Cup","Billie Jean King Cup"] },
+  "Ice Hockey": { "USA":["AHL","NCAA Hockey"], "Sweden":["HockeyAllsvenskan","SHL Playoffs"], "Finland":["Mestis"], "Russia":["VHL","KHL Playoffs"], "Czechia":["Chance Liga"], "International":["Spengler Cup","Champions Hockey League","Olympic Tournament"], "Switzerland":["National League","Swiss Cup"], "Germany":["DEL","DEL2"] },
+  "Baseball": { "USA":["MiLB Triple-A","College World Series"], "Japan":["NPB Climax Series"], "Korea":["KBO Postseason"], "International":["Premier12","Caribbean Series","Olympic Tournament"], "Mexico":["LMB"], "Taiwan":["CPBL"] },
+  "American Football": { "USA":["XFL","UFL","CFL"], "International":["European League of Football"], "College":["Bowl Games","CFP Playoff"] },
+  "Volleyball": { "Italy":["Coppa Italia","Serie A2"], "Poland":["Polish Cup"], "Russia":["Russian Cup"], "International":["World Championship","Nations League Women","Olympic Tournament"], "Brazil":["Superliga"], "Turkey":["Efeler Ligi","Sultanlar Ligi"] },
+  "Handball": { "Germany":["DHB-Pokal"], "France":["Coupe de France"], "Spain":["Copa del Rey"], "International":["World Championship","EHF European League","Olympic Tournament"], "Denmark":["Håndboldligaen"], "Hungary":["Nemzeti Bajnokság I"] },
+  "Rugby": { "England":["Premiership Cup","Championship"], "France":["Pro D2","Top 14 Playoffs"], "International":["Rugby Championship","United Rugby Championship","European Champions Cup"], "New Zealand":["Super Rugby","NPC"], "South Africa":["Currie Cup"] },
+  "MMA": { "UFC":["UFC Pay-Per-View","UFC Contender Series"], "Bellator":["Bellator Grand Prix"], "PFL":["PFL Playoffs","PFL Championship"], "ONE":["ONE Championship","ONE Fight Night"] },
+  "Boxing": { "World":["Middleweight Title","Lightweight Title","Featherweight Title","Super Middleweight Title"], "Amateur":["Olympic Boxing","World Championships"] },
+  "eSports": { "Counter-Strike 2":["PGL Major","IEM Cologne","BLAST Bounty"], "Dota 2":["ESL One","Riyadh Masters","DPC"], "League of Legends":["MSI","LCS","LPL","LEC Playoffs"], "Valorant":["VCT Champions","VCT Pacific","Game Changers"], "Rainbow Six":["Six Invitational"], "Overwatch":["Overwatch Champions Series"] },
+  "Cricket": { "India":["Ranji Trophy","Syed Mushtaq Ali Trophy"], "Australia":["Sheffield Shield","One-Day Cup"], "England":["T20 Blast","One-Day Cup"], "International":["Champions Trophy","World Test Championship","ODI World Cup"], "Pakistan":["Pakistan Super League"], "South Africa":["SA20"], "West Indies":["Caribbean Premier League"] },
+  "Darts": { "PDC":["World Grand Prix","Grand Slam of Darts","Players Championship","European Championship"], "WDF":["WDF World Championship"] },
+  "Snooker": { "World":["World Grand Prix","German Masters","Champion of Champions","Players Championship"] },
+  "Table Tennis": { "International":["WTT Cup Finals","World Team Championship","Olympic Tournament"], "Czechia":["Czech League"], "China":["Chinese Super League"] },
+  "Badminton": { "International":["All England Open","Sudirman Cup","Uber Cup","World Championships"] },
+  "Futsal": { "Spain":["Copa de España","Copa del Rey"], "International":["FIFA Futsal World Cup","UEFA Futsal Euro"], "Brazil":["Liga Nacional"], "Portugal":["Liga Placard"] },
+  "Water Polo": { "International":["World Championship","Europa Cup","Olympic Tournament"], "Hungary":["Magyar Kupa"], "Croatia":["Prvenstvo"], "Italy":["Serie A1"] },
+  "Formula 1": { "World":["Sprint Weekend","Pre-Season Testing"] },
+  "Cycling": { "World":["Vuelta a España","Paris-Roubaix","Milan-San Remo","Tour of Flanders"] },
+  "Golf": { "PGA":["The Open Championship","FedEx Cup Playoffs"], "European Tour":["DP World Tour Championship","Dubai Desert Classic"], "LIV":["LIV Golf Individual"], "International":["Ryder Cup","Presidents Cup"] },
+  "Beach Volleyball": { "International":["World Championship","Elite16","Olympic Tournament"] }
+};
+(function expandTree(){
+  Object.keys(EXTRA_TREE).forEach(function(sport){
+    if(!SPORT_TREE[sport]) return;
+    var cats=EXTRA_TREE[sport];
+    Object.keys(cats).forEach(function(cat){
+      if(!SPORT_TREE[sport][cat]) SPORT_TREE[sport][cat]=[];
+      cats[cat].forEach(function(trn){ if(SPORT_TREE[sport][cat].indexOf(trn)===-1) SPORT_TREE[sport][cat].push(trn); });
+    });
+  });
+})();
+
 (function build(){
   Object.keys(SPORT_TREE).forEach(function(sport, si){
     var sNode = makeNode("sport", sport, null, sport);
@@ -746,6 +783,11 @@ var TEMPLATES = {};
     if(all.length>8){
       TEMPLATES["tmpl_"+key+"_lite"] = { id:"tmpl_"+key+"_lite", sport:sport, name:sport+" — Lite (mobile)", desc:"Trimmed set for mobile clients", markets: all.slice(0, Math.min(4,all.length)).map(function(m){return m.key;}) };
     }
+    TEMPLATES["tmpl_"+key+"_prematch"] = { id:"tmpl_"+key+"_prematch", sport:sport, name:sport+" — Prematch Only", desc:"Prematch coverage set", markets: all.slice(0, Math.min(8,all.length)).map(function(m){return m.key;}) };
+    TEMPLATES["tmpl_"+key+"_live"] = { id:"tmpl_"+key+"_live", sport:sport, name:sport+" — Live Core", desc:"In-play core markets", markets: all.slice(0, Math.min(5,all.length)).map(function(m){return m.key;}) };
+    if(all.length>10){
+      TEMPLATES["tmpl_"+key+"_premium"] = { id:"tmpl_"+key+"_premium", sport:sport, name:sport+" — Premium", desc:"Deep set for VIP clients", markets: all.slice(0, Math.min(all.length,14)).map(function(m){return m.key;}) };
+    }
   });
   // seed per-market live/prematch availability for each template
   Object.keys(TEMPLATES).forEach(function(id){
@@ -753,6 +795,8 @@ var TEMPLATES = {};
     t.markets.forEach(function(k,i){ t.avail[k]={ live:true, prematch:true }; });
     // a little variety: "lite" templates are prematch-only on their last market
     if(id.indexOf("_lite")!==-1 && t.markets.length){ t.avail[t.markets[t.markets.length-1]].live=false; }
+    if(id.indexOf("_prematch")!==-1){ Object.keys(t.avail).forEach(function(k){ t.avail[k].live=false; }); }
+    if(id.indexOf("_live")!==-1){ Object.keys(t.avail).forEach(function(k){ t.avail[k].prematch=false; }); }
   });
 })();
 function templatesForSport(sport){ return Object.keys(TEMPLATES).map(function(k){return TEMPLATES[k];}).filter(function(t){return t.sport===sport;}); }
@@ -775,6 +819,9 @@ var MARKET_GROUPS = {};  // id -> {id, sport, name, order, markets:[keys]}
     var all=marketsFor(sport).map(function(m){return m.key;}), key=sport.replace(/\W/g,"");
     MARKET_GROUPS["mg_"+key+"_pop"]={ id:"mg_"+key+"_pop", sport:sport, name:"Popular", order:0, markets: all.slice(0, Math.min(4,all.length)) };
     MARKET_GROUPS["mg_"+key+"_spec"]={ id:"mg_"+key+"_spec", sport:sport, name:"Specials", order:1, markets: all.slice(4, Math.min(7,all.length)) };
+    MARKET_GROUPS["mg_"+key+"_alt"]={ id:"mg_"+key+"_alt", sport:sport, name:"Alternatives", order:2, markets: all.slice(2, Math.min(6,all.length)) };
+    if(all.length>4) MARKET_GROUPS["mg_"+key+"_props"]={ id:"mg_"+key+"_props", sport:sport, name:"Player Props", order:3, markets: all.slice(Math.max(0,all.length-4)) };
+    if(all.length>5) MARKET_GROUPS["mg_"+key+"_halves"]={ id:"mg_"+key+"_halves", sport:sport, name:"Halves & Periods", order:4, markets: all.slice(1, Math.min(5,all.length)) };
   });
 })();
 function groupsForSport(sport){ return Object.keys(MARKET_GROUPS).map(function(k){return MARKET_GROUPS[k];}).filter(function(g){return g.sport===sport;}).sort(function(a,b){ return a.order-b.order || a.name.localeCompare(b.name); }); }
@@ -811,9 +858,9 @@ var allEvents = allOfType("event");
 var PICKED_TOURNAMENTS = [];  // node ids
 var PICKED_EVENTS = [];       // node ids
 (function seedPicks(){
-  var t = allTournaments.slice().sort(function(){return rng()-.5;}).slice(0,6);
+  var t = allTournaments.slice().sort(function(){return rng()-.5;}).slice(0,18);
   t.forEach(function(n){ PICKED_TOURNAMENTS.push(n.id); });
-  var ev = allEvents.slice().sort(function(){return rng()-.5;}).slice(0,14);
+  var ev = allEvents.slice().sort(function(){return rng()-.5;}).slice(0,40);
   ev.forEach(function(n){ PICKED_EVENTS.push(n.id); });
 })();
 
@@ -1498,10 +1545,7 @@ function marketTemplatesMainHtml(){
       + '<span class="ch-lbl live">L</span><span class="sw mini '+(allL?'on':'')+'" data-ch="live" data-tpl-bulk-tog="'+selT.id+'" data-tpl-bulk-ch="live" data-tpl-bulk-val="'+(allL?'off':'on')+'"><span class="track"></span></span>'
       + '<span class="ch-lbl pre">P</span><span class="sw mini '+(allP?'on':'')+'" data-ch="prematch" data-tpl-bulk-tog="'+selT.id+'" data-tpl-bulk-ch="prematch" data-tpl-bulk-val="'+(allP?'off':'on')+'"><span class="track"></span></span>'
       + '</span></div>';
-    col3body = '<div class="tpl-detail-bar">'
-        + '<input class="mg-name" value="'+esc(selT.name)+'" data-mt-rename="'+selT.id+'" style="flex:1; min-width:0">'
-      + '</div>'
-      + '<div class="mcol-search"><input class="mcol-search-in" id="mt-mk-search" data-mt-mk-search placeholder="Search markets…" value="'+esc(state.mtMkQ||"")+'"></div>'
+    col3body = '<div class="mcol-search"><input class="mcol-search-in" id="mt-mk-search" data-mt-mk-search placeholder="Search markets…" value="'+esc(state.mtMkQ||"")+'"></div>'
       + '<div class="mcol-body">'+bulkRow+mkRows+'</div>';
   } else {
     col3body='<div class="mcol-body"><div class="sub-muted" style="padding:14px; text-align:center">Select or create a template.</div></div>';
@@ -1750,7 +1794,7 @@ function assignModal(tmpl){
     if(!matches(node)) return "";
     var indent=10+depth*18, open=exp.has(node.id)||!!q, hasKids=node.childIds.length>0&&node.type!=="event";
     if(node.type==="category"){
-      var h='<div class="pk-row pk-branch" data-asg-exp="'+node.id+'" style="padding-left:'+indent+'px"><span class="pk-tw '+(open?'open':'')+'">'+CHEVRON+'</span><span class="dim-tag CAT">CAT</span><span class="pk-name">'+esc(node.name)+'</span><span class="sub-muted">'+node.childIds.length+'</span></div>';
+      var h='<div class="pk-row pk-branch" data-asg-exp="'+node.id+'" style="padding-left:'+indent+'px"><span class="pk-tw '+(open?'open':'')+'">'+CHEVRON+'</span><span class="dim-tag CAT">CAT</span>'+(iconFor(node)?'<span class="mc-ic">'+iconFor(node)+'</span>':'')+'<span class="pk-name">'+esc(node.name)+'</span><span class="sub-muted">'+node.childIds.length+'</span></div>';
       return h + (open? sortedChildren(node).map(function(c){return row(c,depth+1);}).join("") : "");
     }
     var assigned=node.template===tid; if(assigned) assignedCount++;
