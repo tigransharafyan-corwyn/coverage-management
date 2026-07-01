@@ -1010,11 +1010,11 @@ function navTabsHtml(){
       + (badge!=null?'<span class="navtab-badge">'+badge+'</span>':'')+'</button>';
   }
   return '<div class="tabbar">'
-    + tab("coverage","🗂","Coverage", null)
+    + tab("coverage","<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.6' stroke-linejoin='round'><circle cx='12' cy='12' r='9.3'/><polygon points='12,8.2 15.1,10.4 13.9,14 10.1,14 8.9,10.4' fill='currentColor' stroke='none'/><path d='M12 2.7V8.2M4.1 8.7 8.9 10.4M19.9 8.7 15.1 10.4M7 19.1 10.1 14M17 19.1 13.9 14'/></svg>","Coverage", null)
     + tab("picked-tournaments","🏆","Picked Tournaments", PICKED_TOURNAMENTS.length)
     + tab("age-groups","<span class=\"nt-18\">18+</span>","Age Groups", null)
-    + tab("market-templates","◳","Market Templates", null)
-    + tab("market-groups","▤","Market Groups", null)
+    + tab("market-templates","<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.7' stroke-linejoin='round'><rect x='3.3' y='4.3' width='17.4' height='15.4' rx='2.2'/><line x1='3.3' y1='9' x2='20.7' y2='9'/><line x1='9' y1='9' x2='9' y2='19.7'/></svg>","Market Templates", null)
+    + tab("market-groups","<svg viewBox='0 0 24 24' fill='currentColor'><rect x='3.4' y='3.4' width='7.6' height='7.6' rx='1.9'/><rect x='13' y='3.4' width='7.6' height='7.6' rx='1.9'/><rect x='3.4' y='13' width='7.6' height='7.6' rx='1.9'/><rect x='13' y='13' width='7.6' height='7.6' rx='1.9'/></svg>","Market Groups", null)
     + tab("feed-distribution","<svg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'><circle cx='104' cy='256' r='86' fill='currentColor'/><circle cx='452' cy='66' r='50' fill='currentColor'/><circle cx='452' cy='256' r='50' fill='currentColor'/><circle cx='452' cy='446' r='50' fill='currentColor'/><g stroke='currentColor' stroke-width='28' stroke-linecap='round' stroke-linejoin='round' fill='none'><path d='M168 256 H322'/><path d='M296 224 L334 256 L296 288'/><path d='M158 196 C158 92 168 66 268 66 H322'/><path d='M296 34 L334 66 L296 98'/><path d='M158 316 C158 420 168 446 268 446 H322'/><path d='M296 414 L334 446 L296 478'/></g></svg>","Feed Distribution", null)
   + '</div>';
 }
