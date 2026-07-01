@@ -384,6 +384,16 @@
   .nt-bulk { display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-bottom:10px; }
   .nt-bulk .ch-lbl { width:auto; }
 
+  /* market templates — table */
+  .tpl-table { width:100%; border-collapse:collapse; }
+  .tpl-table thead th { text-align:left; font-size:10.5px; text-transform:uppercase; letter-spacing:.4px; color:var(--muted); font-weight:650; padding:8px 12px; border-bottom:1px solid var(--border-strong); white-space:nowrap; }
+  .tpl-table thead th.c { text-align:center; }
+  .tpl-table td { padding:10px 12px; border-bottom:1px solid var(--border); vertical-align:middle; }
+  .tpl-table tbody tr:hover td { background:var(--row-hover); }
+  .tpl-table td.c { text-align:center; font-variant-numeric:tabular-nums; }
+  .tpl-table .tpl-act { text-align:right; white-space:nowrap; }
+  .tpl-table .tpl-act .btn { margin-left:6px; }
+
   /* market groups — table */
   .mg-table { width:100%; border-collapse:collapse; }
   .mg-table thead th { text-align:left; font-size:10.5px; text-transform:uppercase; letter-spacing:.4px; color:var(--muted); font-weight:650; padding:8px 12px; border-bottom:1px solid var(--border-strong); white-space:nowrap; }
@@ -885,6 +895,7 @@ function render(){
   var winY=window.pageYOffset||0;
   var mbEl=document.querySelector(".modal-body"); var mbTop=mbEl?mbEl.scrollTop:0;
   var mpEl=document.querySelector(".mp-list"); var mpTop=mpEl?mpEl.scrollTop:0;
+  var mtgEl=document.querySelector(".mt-grid"); var mtgTop=mtgEl?mtgEl.scrollTop:0;
 
   var html = '<div class="app">'
     + topbarHtml()
@@ -905,6 +916,7 @@ function render(){
   document.querySelectorAll(".mcol[data-col]").forEach(function(c){ var b=c.querySelector(".mcol-body"); var k=c.getAttribute("data-col"); if(b&&colTops[k]!=null) b.scrollTop=colTops[k]; });
   var mb=document.querySelector(".modal-body"); if(mb&&mbTop) mb.scrollTop=mbTop;
   var mp=document.querySelector(".mp-list"); if(mp&&mpTop) mp.scrollTop=mpTop;
+  var mtg=document.querySelector(".mt-grid"); if(mtg&&mtgTop) mtg.scrollTop=mtgTop;
   if(window.pageYOffset!==winY) window.scrollTo(window.pageXOffset, winY);
 }
 
@@ -1221,7 +1233,7 @@ function pickedTournamentsMainHtml(){
   return '<div class="panel">'
     + '<div class="panel-head"><h2>Picked Tournaments</h2><span class="hint">drag or set a priority — pinned to the top of the iframe left tree in this order</span>'
       + '<span class="spacer"></span>'
-      + '<button class="btn primary" id="add-picked-trn">+ Add tournaments</button>'
+      + '<button class="btn primary" id="add-picked-trn">+ Add Tournaments</button>'
     + '</div>'
     + '<div class="panel-body">'
       + '<div class="info-banner blue">ℹ️ Top tournaments appear pinned at the top of the player iframe’s left tree, in this priority order, so players open their events directly.</div>'
@@ -1306,22 +1318,23 @@ function ageGroupsMainHtml(){
   + '</div>';
 }
 
-/* ---------- market templates view: create templates per sport, with live/prematch availability ---------- */
-function mtCardHtml(t, allMk, showSport){
+/* ---------- market templates view: table with columns ---------- */
+function mtRowHtml(t, allMk, showSport){
   var liveCount=0, preCount=0, inc=0;
   allMk.forEach(function(m){ var a=tmplAvail(t,m.key); if(a.live)liveCount++; if(a.prematch)preCount++; if(a.live||a.prematch)inc++; });
-  return '<div class="mt-card">'
-    + '<div class="mt-head mt-static">'
-      + (showSport?'<span class="dim-tag SPT">'+esc(t.sport)+'</span>':'')
-      + '<span class="mt-name-static">'+esc(t.name)+'</span>'
-      + '<span class="mt-meta">'+inc+' markets · <span class="ch-lbl live">'+liveCount+' L</span> · <span class="ch-lbl pre">'+preCount+' P</span></span>'
-      + '<span class="spacer"></span>'
+  return '<tr>'
+    + (showSport?'<td><span class="dim-tag SPT">'+esc(t.sport)+'</span></td>':'')
+    + '<td><b>'+esc(t.name)+'</b></td>'
+    + '<td class="c">'+inc+'</td>'
+    + '<td class="c"><span class="ch-lbl live">'+liveCount+'</span></td>'
+    + '<td class="c"><span class="ch-lbl pre">'+preCount+'</span></td>'
+    + '<td class="tpl-act">'
       + '<button class="btn sm" data-mt-edit="'+t.id+'">Edit</button>'
       + '<button class="btn sm" data-mt-clone="'+t.id+'">Clone</button>'
       + '<button class="btn sm" data-mt-assign="'+t.id+'">Assign…</button>'
       + '<button class="btn sm danger" data-mt-del="'+t.id+'">Delete</button>'
-    + '</div>'
-  + '</div>';
+    + '</td>'
+  + '</tr>';
 }
 function marketTemplatesMainHtml(){
   if(!state.mtSport) state.mtSport = NODES[ROOT_IDS[0]].name;
@@ -1339,16 +1352,21 @@ function marketTemplatesMainHtml(){
   + '</div>' : '';
   var sportSel='<div class="ms" style="min-width:168px"><button class="ms-toggle" data-mt-sport-toggle>'+(isAll?'All sports':esc(sport))+'</button>'+sportMenu+'</div>';
 
-  var cards = tmpls.length===0
+  var body = tmpls.length===0
     ? '<div class="empty-state">No templates '+(isAll?'yet':'for '+esc(sport)+' yet')+' — create one to get started.</div>'
-    : tmpls.map(function(t){ return mtCardHtml(t, marketsFor(t.sport), isAll); }).join("");
+    : '<table class="tpl-table"><thead><tr>'
+        + (isAll?'<th>Sport</th>':'')
+        + '<th>Template</th><th class="c">Markets</th><th class="c">Live</th><th class="c">Prematch</th><th class="tpl-act"></th>'
+      + '</tr></thead><tbody>'
+        + tmpls.map(function(t){ return mtRowHtml(t, marketsFor(t.sport), isAll); }).join("")
+      + '</tbody></table>';
 
   var newBtn = isAll
-    ? '<button class="btn primary" data-mt-new disabled title="Pick a sport to add a template">+ New template</button>'
-    : '<button class="btn primary" data-mt-new>+ New template</button>';
+    ? '<button class="btn primary" data-mt-new disabled title="Pick a sport to add a template">+ New Template</button>'
+    : '<button class="btn primary" data-mt-new>+ New Template</button>';
 
   var hasAny = (isAll ? Object.keys(TEMPLATES).length : templatesForSport(sport).length) > 0;
-  var cloneCtrl = '<button class="btn" data-clone-from-open'+(hasAny?'':' disabled')+'>⧉ Clone from…</button>';
+  var cloneCtrl = '<button class="btn" data-clone-from-open'+(hasAny?'':' disabled')+'>⧉ Clone From…</button>';
 
   return '<div class="panel">'
     + '<div class="panel-head"><h2>Market Templates</h2><span class="hint">create market sets per sport &amp; toggle their live / prematch availability</span>'
@@ -1356,7 +1374,7 @@ function marketTemplatesMainHtml(){
       + '<div class="toolbar">'+sportSel+cloneCtrl+newBtn+'</div>'
     + '</div>'
     + '<div class="panel-body">'
-      + cards
+      + body
     + '</div>'
   + '</div>';
 }
