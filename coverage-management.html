@@ -167,6 +167,8 @@
   /* child enabled while parent is disabled → orange to flag the override */
   .sw.on.inherited-off[data-ch] .track { background:var(--orange); }
   .excl-tag { display:inline-block; margin-left:7px; font-size:9px; font-weight:800; letter-spacing:.4px; color:var(--orange); background:var(--warn-soft); border:1px solid #f0d6b0; border-radius:5px; padding:1px 5px; vertical-align:middle; }
+  .info-i { margin-left:7px; font-size:12px; color:var(--muted); cursor:help; opacity:.7; }
+  .info-i:hover { opacity:1; color:var(--accent); }
   .sw.on.inherited-off[data-ch] .track:after { box-shadow:0 1px 2px rgba(0,0,0,.25); }
   .sw.disabled { opacity:.5; cursor:not-allowed;}
   .ch-cell { display:flex; flex-direction:column; align-items:center; gap:3px;}
@@ -1647,8 +1649,11 @@ function fdBulkModal(){
     + avail.map(function(pr){ return '<option value="'+esc(pr)+'">'+esc(pr)+'</option>'; }).join("") + '</select>';
   var override = m.override!==false;
   var mode = m.mode||"assign";
-  var MODES=[{k:"assign",label:"Assign providers"},{k:"inherit",label:"Inherit from parent (clear override)"}];
-  var modeList = MODES.map(function(x){ return '<div class="ms-opt ms-plain'+(mode===x.k?' sel':'')+'" data-fdb-mode="'+x.k+'">'+esc(x.label)+'</div>'; }).join("");
+  var MODES=[
+    {k:"assign",label:"Assign providers",desc:"Set a ranked feed-provider list on every node of the chosen level for this client. This overrides any providers inherited from a parent level."},
+    {k:"inherit",label:"Inherit from parent (clear override)",desc:"Remove the provider setting at the chosen level so those nodes fall back to (inherit) their parent's provider priority. Any existing overrides at that level are cleared."}
+  ];
+  var modeList = MODES.map(function(x){ return '<div class="ms-opt ms-plain'+(mode===x.k?' sel':'')+'" data-fdb-mode="'+x.k+'">'+esc(x.label)+'<span class="info-i" title="'+esc(x.desc)+'">ⓘ</span></div>'; }).join("");
   var assignBlock = '<div class="stpl-choose-label">Provider priority</div>'
     + rows
     + '<div style="display:flex; gap:8px; margin-top:10px">'+addSel+'<button class="btn" id="prov-add-btn">Add</button></div>'
