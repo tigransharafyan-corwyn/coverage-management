@@ -1355,7 +1355,7 @@ function pickedTournamentsMainHtml(){
     + '<div class="panel-body">'
       + (state.country!=="default"
           ? '<div class="info-banner" style="background:var(--warn-soft); border-color:#f0d9a8; color:#8a5a12">🌐 Editing the <b>pinned priority order</b> for <b>'+esc(state.country)+'</b> — overrides the Default order. The set of picks is shared across countries.</div>'
-          : '<div class="info-banner blue">ℹ️ Top tournaments appear pinned at the top of the player iframe’s left tree, in this priority order, so players open their events directly.</div>')
+          : '')
       + cards
     + '</div>'
   + '</div>';
