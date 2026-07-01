@@ -163,6 +163,7 @@
   .sw .track:after { content:""; position:absolute; top:2px; left:2px; width:15px; height:15px; border-radius:50%; background:#fff; transition:.15s; box-shadow:0 1px 2px rgba(0,0,0,.2);}
   .sw.on[data-ch="live"] .track { background:var(--live);}
   .sw.on[data-ch="prematch"] .track { background:var(--prematch);}
+  .sw.on[data-ch="both"] .track { background:var(--accent);}
   .sw.on .track:after { left:17px; }
   /* child enabled while parent is disabled → orange to flag the override */
   .sw.on.inherited-off[data-ch] .track { background:var(--orange); }
@@ -1126,19 +1127,16 @@ function ageCovGroups(){
 function ageCovBulkModal(){
   var m=state.modal, groups=ageCovGroups();
   if(!m.draft){ m.draft={}; m.touched={};
-    groups.forEach(function(g){ m.draft[g.key]={ live:g.list.every(function(n){return n.live.enabled;}), prematch:g.list.every(function(n){return n.prematch.enabled;}) }; });
+    groups.forEach(function(g){ m.draft[g.key]={ on: g.list.every(function(n){return n.live.enabled && n.prematch.enabled;}) }; });
   }
-  var rows=groups.map(function(g){ var d=m.draft[g.key]||{live:false,prematch:false};
+  var rows=groups.map(function(g){ var d=m.draft[g.key]||{on:false};
     return '<div class="mp-row" style="cursor:default">'
       + '<span class="mp-name" style="flex:1">'+esc(g.label)+' <span class="sub-muted">· '+g.list.length+' trn</span></span>'
-      + '<span class="mc-ch">'
-        + '<span class="ch-lbl live">L</span><span class="sw mini '+(d.live?"on":"")+'" data-ch="live" data-agc-tog="'+esc(g.key)+'" data-agc-ch="live"><span class="track"></span></span>'
-        + '<span class="ch-lbl pre">P</span><span class="sw mini '+(d.prematch?"on":"")+'" data-ch="prematch" data-agc-tog="'+esc(g.key)+'" data-agc-ch="prematch"><span class="track"></span></span>'
-      + '</span>'
+      + '<span class="mc-ch"><span class="ch-lbl" style="color:var(--muted)">'+(d.on?'Enabled':'Disabled')+'</span><span class="sw mini '+(d.on?"on":"")+'" data-ch="both" data-agc-tog="'+esc(g.key)+'"><span class="track"></span></span></span>'
     + '</div>';
   }).join("");
   var touchedCount=Object.keys(m.touched||{}).length;
-  var body='<div class="info-banner blue">ℹ️ Toggle <b>Live</b> / <b>Prematch</b> per age group, then <b>Apply</b>. Changes cascade to every tournament (and its events) carrying that age group.</div>'
+  var body='<div class="info-banner blue">ℹ️ Toggle each age group on or off, then <b>Apply</b>. Changes cascade to every tournament (and its events) carrying that age group, for both Live and Prematch.</div>'
     + '<div class="mp-list">'+rows+'</div>';
   return shell('Enable / Disable by Age Group', 'bulk toggle coverage by tournament age group', body,
     '<span class="sub-muted spacer">'+touchedCount+' change'+(touchedCount===1?"":"s")+' staged</span><button class="btn" id="modal-close">Cancel</button><button class="btn primary" data-agc-apply '+(touchedCount?"":"disabled")+'>Apply</button>');
@@ -1146,8 +1144,20 @@ function ageCovBulkModal(){
 function ageCovApply(){
   var m=state.modal, d=m.draft||{}, touched=m.touched||{}, groups=ageCovGroups(), byKey={};
   groups.forEach(function(g){ byKey[g.key]=g; });
-  Object.keys(touched).forEach(function(tk){ var parts=tk.split("|"), key=parts[0], ch=parts[1]; var g=byKey[key]; if(!g)return; var val=d[key][ch]; g.list.forEach(function(n){ setChannelCascade(n, ch, val); }); });
+  Object.keys(touched).forEach(function(key){ var g=byKey[key]; if(!g)return; var val=d[key].on; g.list.forEach(function(n){ setChannelCascade(n,"live",val); setChannelCascade(n,"prematch",val); }); });
   state.modal=null; render();
+}
+/* ---- create a new age group ---- */
+function ageNewModal(){
+  var m=state.modal, name=(m.name!==undefined?m.name:""), trimmed=name.trim();
+  var dup = AGE_GROUPS.some(function(a){ return a.toLowerCase()===trimmed.toLowerCase(); });
+  var body='<div class="stpl-choose-label">Age group name</div>'
+    + '<input id="age-new-input" class="search-box" style="width:100%; max-width:none" placeholder="e.g. U16, Masters, Veterans…" value="'+esc(name)+'">'
+    + (dup?'<div class="sub-muted" style="color:var(--neg); margin-top:8px">An age group named “'+esc(trimmed)+'” already exists.</div>':'')
+    + '<div class="sub-muted" style="margin-top:10px">'+AGE_GROUPS.length+' age groups exist. New groups become available across the age-group dropdowns and bulk tools.</div>';
+  var canSave = trimmed.length>0 && !dup;
+  return shell('New Age Group', 'add a custom age group', body,
+    '<span class="spacer"></span><button class="btn" id="modal-close">Cancel</button><button class="btn primary" data-age-new-save '+(canSave?'':'disabled')+'>Create</button>');
 }
 
 function countryFilterHtml(){
@@ -1465,7 +1475,7 @@ function ageGroupsMainHtml(){
   return '<div class="panel">'
     + '<div class="panel-head"><h2>Age Groups</h2><span class="hint">pick a sport → category, then assign an age group to each tournament</span>'
       + '<span class="spacer"></span>'
-      + '<div class="toolbar">'+agpFilterHtml()+'<input id="agp-search" class="search-box" placeholder="Search…" value="'+esc(state.agpSearch)+'"><button class="btn sm primary" data-agp-bulk-open>Bulk assign…</button></div>'
+      + '<div class="toolbar">'+agpFilterHtml()+'<input id="agp-search" class="search-box" placeholder="Search…" value="'+esc(state.agpSearch)+'"><button class="btn sm" id="agp-new-group">+ New Age Group</button><button class="btn sm primary" data-agp-bulk-open>Bulk assign…</button></div>'
     + '</div>'
     + '<div class="panel-body" style="padding:12px">'
       + '<div class="mcols">'+col1+col2+col3+'</div>'
@@ -1887,6 +1897,7 @@ function modalHtml(){
     case "fd-bulk": return fdBulkModal();
     case "agp-bulk": return ageBulkModal();
     case "age-cov": return ageCovBulkModal();
+    case "age-new": return ageNewModal();
     case "markets": return marketsModal(NODES[m.nodeId]);
     case "template": return applyTemplateModal(NODES[m.nodeId]);
     case "templates": return templatesModal(NODES[m.nodeId]);
@@ -2452,6 +2463,7 @@ root.addEventListener("click", function(e){
   var tmpls=t.closest("[data-templates]"); if(tmpls){ state.modal={type:"templates",nodeId:tmpls.getAttribute("data-templates")}; render(); return; }
   var ageb=t.closest("[data-age]"); if(ageb){ state.modal={type:"age",nodeId:ageb.getAttribute("data-age")}; render(); return; }
   if(t.closest("#open-age-cov")){ state.modal={type:"age-cov"}; render(); return; }
+  if(t.closest("#agp-new-group")){ state.modal={type:"age-new", name:""}; render(); return; }
   if(t.closest("#open-disabled-summary")){ state.summaryFilters={q:"",kind:"all",sport:"",type:"",channel:"both"}; state.modal={type:"disabled-summary"}; render(); return; }
 
   // per-entity settings (gear)
@@ -2586,8 +2598,9 @@ modalRoot.addEventListener("click", function(e){
   var agpba=t.closest("[data-agpb-age]"); if(agpba){ state.modal.age=agpba.getAttribute("data-agpb-age"); render(); return; }
   if(t.closest("[data-agpb-override]")){ state.modal.override=!(state.modal.override!==false); render(); return; }
   if(t.closest("[data-agp-bulk-apply]")){ ageBulkApply(); return; }
-  var agct=t.closest("[data-agc-tog]"); if(agct){ var ak=agct.getAttribute("data-agc-tog"), ach=agct.getAttribute("data-agc-ch"); if(!state.modal.draft[ak])state.modal.draft[ak]={live:false,prematch:false}; state.modal.draft[ak][ach]=!state.modal.draft[ak][ach]; state.modal.touched[ak+"|"+ach]=true; render(); return; }
+  var agct=t.closest("[data-agc-tog]"); if(agct){ var ak=agct.getAttribute("data-agc-tog"); if(!state.modal.draft[ak])state.modal.draft[ak]={on:false}; state.modal.draft[ak].on=!state.modal.draft[ak].on; state.modal.touched[ak]=true; render(); return; }
   if(t.closest("[data-agc-apply]")){ ageCovApply(); return; }
+  if(t.closest("[data-age-new-save]")){ var nm=(state.modal.name||"").trim(); if(nm && !AGE_GROUPS.some(function(a){return a.toLowerCase()===nm.toLowerCase();})){ AGE_GROUPS.push(nm); } state.modal=null; render(); return; }
   if(t.closest("[data-fdb-override]")){ state.modal.override=!(state.modal.override!==false); render(); return; }
   if(t.closest("[data-fd-bulk-apply]")){ fdBulkApply(); return; }
 
@@ -2615,6 +2628,7 @@ modalRoot.addEventListener("input", function(e){
   if(e.target.id==="mp-search"){ state.modal.mpq=e.target.value; render(); var elp=document.getElementById("mp-search"); if(elp){elp.focus(); var vp=elp.value; elp.setSelectionRange(vp.length,vp.length);} return; }
   if(e.target.id==="nt-mkt-search"){ state.modal.mq=e.target.value; render(); var elm=document.getElementById("nt-mkt-search"); if(elm){elm.focus(); var vm=elm.value; elm.setSelectionRange(vm.length,vm.length);} return; }
   if(e.target.id==="sum-search"){ state.summaryFilters.q=e.target.value; render(); return; }
+  if(e.target.id==="age-new-input"){ state.modal.name=e.target.value; render(); var eln=document.getElementById("age-new-input"); if(eln){eln.focus(); var vn=eln.value; eln.setSelectionRange(vn.length,vn.length);} return; }
 });
 modalRoot.addEventListener("change", function(e){
   if(e.target.id==="sum-sport"){ state.summaryFilters.sport=e.target.value; render(); return; }
