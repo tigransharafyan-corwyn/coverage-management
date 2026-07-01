@@ -1583,7 +1583,7 @@ function marketGroupsMainHtml(){
       + '<div class="spin"><input class="spin-in mg-prio" type="text" inputmode="numeric" value="'+no+'" data-mg-prio-id="'+g.id+'">'
         + '<div class="spin-btns"><button data-mg-prio-dir="up" data-mg-prio-id="'+g.id+'" '+(no<=1?'disabled':'')+'>▲</button>'
         + '<button data-mg-prio-dir="down" data-mg-prio-id="'+g.id+'" '+(no>=total?'disabled':'')+'>▼</button></div></div>'
-      + '<span class="mc-main"><input class="mg-name" value="'+esc(g.name)+'" data-mg-rename="'+g.id+'"></span>'
+      + '<span class="mc-main"><input class="mg-name" id="mgname-'+g.id+'" value="'+esc(g.name)+'" data-mg-rename="'+g.id+'"></span>'
       + '<span class="mc-cnt">'+g.markets.length+'</span>'
       + '<button class="icon-btn" data-mg-del="'+g.id+'" title="Delete group">✕</button>'
       + '<span class="mc-chev">'+CHEVRON+'</span>'
@@ -2384,7 +2384,7 @@ root.addEventListener("click", function(e){
   var mgpd=t.closest("[data-mg-prio-dir]"); if(mgpd){ reorderGroup(state.mgSport, mgpd.getAttribute("data-mg-prio-id"), mgpd.getAttribute("data-mg-prio-dir")); render(); return; }
   var mgadd=t.closest("[data-mg-add-group]"); if(mgadd){ var mga=MARKET_GROUPS[mgadd.getAttribute("data-mg-add-group")]; var mgak=mgadd.getAttribute("data-mg-add-key"); if(mga && mga.markets.indexOf(mgak)===-1) mga.markets.push(mgak); render(); return; }
   var mgrm=t.closest("[data-mg-rm-group]"); if(mgrm){ var mgr=MARKET_GROUPS[mgrm.getAttribute("data-mg-rm-group")]; var mgrk=mgrm.getAttribute("data-mg-rm-key"); if(mgr) mgr.markets=mgr.markets.filter(function(x){return x!==mgrk;}); render(); return; }
-  if(t.closest("[data-mg-rename]")){ return; }
+  var mgrn=t.closest("[data-mg-rename]"); if(mgrn){ var rgid=mgrn.getAttribute("data-mg-rename"); if(state.mgGroupSel!==rgid){ state.mgGroupSel=rgid; render(); } return; }
   var mggs=t.closest("[data-mg-group-sel]"); if(mggs){ if(t.closest(".spin")) return; state.mgGroupSel=mggs.getAttribute("data-mg-group-sel"); render(); return; }
 
   // feed-distribution: drill selection (badge clicks fall through to the providers modal)
