@@ -1127,7 +1127,8 @@ function setMarketChannel(levelNode, key, ch, desiredOn){
 function marketSwitch(levelNode, key, ch){
   var eff=effMarket(levelNode, key, ch);
   var on = eff.state==='on';
-  return '<span class="sw mini '+(on?'on':'')+'" data-ch="'+ch+'" data-mkt-ch="'+ch+'" data-mkt-key="'+key+'" data-mkt-node="'+levelNode.id+'" title="'+(on?'Disable':'Enable')+' this market on '+ch+(eff.excluded?' (exclusion)':'')+'"><span class="track"></span></span>';
+  var exc = on && eff.excluded;
+  return '<span class="sw mini '+(on?'on':'')+(exc?' inherited-off':'')+'" data-ch="'+ch+'" data-mkt-ch="'+ch+'" data-mkt-key="'+key+'" data-mkt-node="'+levelNode.id+'" title="'+(exc?'Exclusion — market is off at a higher level but re-enabled here':(on?'Disable':'Enable')+' this market on '+ch)+'"><span class="track"></span></span>';
 }
 
 function mcolHtml(col){
