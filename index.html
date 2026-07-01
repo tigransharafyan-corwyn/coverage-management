@@ -1196,7 +1196,7 @@ function mcRowHtml(node, col, no, total, isSel){
       + liveBadge
     + '</span>'
     + chans
-    + ((node.type==="sport"||node.type==="tournament"||node.type==="event"||node.type==="market")?'<button class="row-gear" data-settings="'+node.id+'" title="Settings">'+GEAR+'</button>':'')
+    + ((node.type==="sport"||node.type==="tournament"||node.type==="event")?'<button class="row-gear" data-settings="'+node.id+'" title="Settings">'+GEAR+'</button>':'')
     + (hasKids?'<span class="mc-chev">'+CHEVRON+'</span>':'<span style="width:14px"></span>')
   + '</div>';
 }
@@ -1993,7 +1993,7 @@ function settingsModal(node){
         + '<div class="spin"><input class="spin-in mp-prio" type="text" inputmode="numeric" value="'+no+'" data-mp-prio-key="'+k+'">'
           + '<div class="spin-btns"><button data-mp-dir="up" data-mp-key="'+k+'" '+(no<=1?'disabled':'')+'>▲</button>'
           + '<button data-mp-dir="down" data-mp-key="'+k+'" '+(no>=total?'disabled':'')+'>▼</button></div></div>'
-        + '<span class="mp-name">'+esc(marketLabelFor(sport,k))+(lExc||pExc?' <span class="excl-tag" title="On here but disabled at a higher level">PARENT OFF</span>':'')+'</span>'
+        + '<span class="mp-name">'+esc(marketLabelFor(sport,k))+(lExc||pExc?' <span class="excl-tag" title="On here but disabled at a higher level">PARENT EXCLUSION</span>':'')+'</span>'
         + '<span class="mc-ch">'
           + '<span class="ch-lbl live">L</span><span class="sw mini '+(lv?'on':'')+(lExc?' inherited-off':'')+'" data-ch="live" data-mp-toggle data-mp-tkey="'+k+'" data-mp-tch="live" title="'+(lExc?'On here but disabled at a higher level (Parent Off)':(lv?'Disable':'Enable')+' live')+'"><span class="track"></span></span>'
           + '<span class="ch-lbl pre">P</span><span class="sw mini '+(pr?'on':'')+(pExc?' inherited-off':'')+'" data-ch="prematch" data-mp-toggle data-mp-tkey="'+k+'" data-mp-tch="prematch" title="'+(pExc?'On here but disabled at a higher level (Parent Off)':(pr?'Disable':'Enable')+' prematch')+'"><span class="track"></span></span>'
