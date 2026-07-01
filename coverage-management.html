@@ -480,11 +480,18 @@
 
   /* disabled-summary modal */
   .seg button.on { background:var(--accent); color:#fff; }
-  .sum-filters { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:12px; }
+  .sum-filters { display:flex; gap:14px 16px; flex-wrap:wrap; align-items:flex-end; margin-bottom:12px; }
+  .sum-fgroup { display:flex; flex-direction:column; gap:5px; }
+  .sum-flabel { font-size:9.5px; font-weight:700; text-transform:uppercase; letter-spacing:.5px; color:var(--muted); }
+  .sum-filters .seg button b { font-weight:700; opacity:.75; margin-left:3px; }
+  .sum-filters .seg button.on b { opacity:1; }
   .sum-stat { font-size:11.5px; color:var(--muted); margin-bottom:8px; }
   table.sum-table thead th { position:sticky; top:0; background:#f8fafc; z-index:2; }
   table.sum-table td { vertical-align:middle; }
   table.sum-table td.c { white-space:nowrap; }
+  table.sum-table td .ppath { font-size:11px; margin-top:2px; }
+  table.sum-table td.sum-who { font-size:12px; color:var(--text); white-space:nowrap; }
+  table.sum-table td.sum-when { font-size:11.5px; color:var(--muted); white-space:nowrap; font-variant-numeric:tabular-nums; }
 </style>
 </head>
 <body>
@@ -1231,6 +1238,10 @@ function toggleMarketOwn(node, key, ch, desiredOn){
   } else {
     node.marketRules[key][ch]='off';                      // explicit off at this level
   }
+  // audit stamp (who/when) for the rule at this level
+  if(node.marketRules[key] && node.marketRules[key][ch]){
+    node.marketAudit=node.marketAudit||{}; node.marketAudit[key]=node.marketAudit[key]||{}; node.marketAudit[key][ch]=nowAudit();
+  } else if(node.marketAudit && node.marketAudit[key]){ delete node.marketAudit[key][ch]; }
   if(node.marketRules[key] && Object.keys(node.marketRules[key]).length===0) delete node.marketRules[key];
 }
 // a market on/off switch bound to a level node (writes that node's marketRules)
@@ -2155,6 +2166,32 @@ function settingsModal(node){
     '<button class="btn primary" id="modal-close">Done</button>', true);
 }
 
+/* --- audit metadata (who disabled last + when) --- */
+var MOCK_USERS=["a.petrov","m.silva","j.okafor","l.rossi","s.dubois","t.yilmaz","k.nowak","admin"];
+var CURRENT_USER="tigran.sharafyan";
+function pad2(n){ return (n<10?"0":"")+n; }
+function fmtDateTime(d){ return pad2(d.getDate())+"."+pad2(d.getMonth()+1)+"."+d.getFullYear()+" "+pad2(d.getHours())+":"+pad2(d.getMinutes())+":"+pad2(d.getSeconds()); }
+function nowAudit(){ var d=new Date(); return { by:CURRENT_USER, at:fmtDateTime(d), ts:d.getTime() }; }
+function hashStr(s){ var h=2166136261>>>0; for(var i=0;i<s.length;i++){ h^=s.charCodeAt(i); h=Math.imul(h,16777619)>>>0; } return h>>>0; }
+function mockAudit(key){
+  var h=hashStr(key);
+  var by=MOCK_USERS[h%MOCK_USERS.length];
+  var base=new Date(2026,5,29,12,0,0);
+  var d=new Date(base.getTime() - (h%120)*86400000 - ((h>>4)%24)*3600000 - ((h>>9)%60)*60000 - ((h>>14)%60)*1000);
+  return { by:by, at:fmtDateTime(d), ts:d.getTime() };
+}
+function pickLatest(metas){ return metas.reduce(function(a,b){ return (!a || b.ts>a.ts)? b : a; }, null); }
+function issueAudit(it){
+  var metas;
+  if(it.kind==="node"){
+    metas=it.channels.map(function(c){ var ch=c.toLowerCase(); return (it.node.audit&&it.node.audit[ch])? it.node.audit[ch] : mockAudit(it.node.id+"|n|"+ch); });
+  } else {
+    var mkk=it.marketKey;
+    metas=it.channels.map(function(c){ var ch=c.toLowerCase(); return (it.node.marketAudit&&it.node.marketAudit[mkk]&&it.node.marketAudit[mkk][ch])? it.node.marketAudit[mkk][ch] : mockAudit(it.node.id+"|"+mkk+"|"+ch); });
+  }
+  return pickLatest(metas) || mockAudit(it.node.id);
+}
+
 /* --- disabled summary overlay (per partner) --- */
 function collectDisabledIssues(){
   var out=[];
@@ -2167,8 +2204,8 @@ function collectDisabledIssues(){
     Object.keys(n.marketRules).forEach(function(mkk){
       var r=n.marketRules[mkk];
       var lbl=(marketsFor(sportOf(n)).filter(function(x){return x.key===mkk;})[0]||{label:mkk}).label;
-      if(r.live==='off'||r.prematch==='off'){ var c=[]; if(r.live==='off')c.push("Live"); if(r.prematch==='off')c.push("Prematch"); out.push({kind:"market", node:n, type:n.type, sport:n.sport, name:lbl, path:pathLabel(n), channels:c}); }
-      if(r.live==='on'||r.prematch==='on'){ var c2=[]; if(r.live==='on')c2.push("Live"); if(r.prematch==='on')c2.push("Prematch"); out.push({kind:"exclusion", node:n, type:n.type, sport:n.sport, name:lbl, path:pathLabel(n), channels:c2}); }
+      if(r.live==='off'||r.prematch==='off'){ var c=[]; if(r.live==='off')c.push("Live"); if(r.prematch==='off')c.push("Prematch"); out.push({kind:"market", node:n, type:n.type, sport:n.sport, name:lbl, marketKey:mkk, path:pathLabel(n), channels:c}); }
+      if(r.live==='on'||r.prematch==='on'){ var c2=[]; if(r.live==='on')c2.push("Live"); if(r.prematch==='on')c2.push("Prematch"); out.push({kind:"exclusion", node:n, type:n.type, sport:n.sport, name:lbl, marketKey:mkk, path:pathLabel(n), channels:c2}); }
     });
   });
   return out;
@@ -2191,9 +2228,11 @@ function filterIssues(all, f){
 function csvCell(s){ s=String(s); return /[",\n]/.test(s)? '"'+s.replace(/"/g,'""')+'"' : s; }
 function exportDisabledCSV(){
   var f=state.summaryFilters; var rows=filterIssues(collectDisabledIssues(), f);
-  var head=["Kind","Level","Item","Channels","Location","Partner"];
+  var KINDCSV={node:"Disabled",market:"Market off",exclusion:"Re-enabled"};
+  var head=["Type","Level","Item","Channels","Location","Disabled by","When","Partner"];
   var lines=[head.join(",")].concat(rows.map(function(it){
-    return [it.kind, it.type, it.name, it.channels.join("|"), it.path, partnerName(state.partner)].map(csvCell).join(",");
+    var au=issueAudit(it);
+    return [KINDCSV[it.kind]||it.kind, it.type, it.name, it.channels.join("|"), it.path, au.by, au.at, partnerName(state.partner)].map(csvCell).join(",");
   }));
   var blob=new Blob([lines.join("\n")], {type:"text/csv"});
   var url=URL.createObjectURL(blob); var a=document.createElement("a");
@@ -2216,41 +2255,44 @@ function disabledSummaryModal(){
   var sportOpts='<option value="">All sports</option>'+sportsPresent.map(function(s){ return '<option value="'+esc(s)+'"'+(f.sport===s?' selected':'')+'>'+esc(s)+'</option>'; }).join("");
   var typeOpts='<option value="">All levels</option>'+["sport","category","tournament","event"].map(function(tp){ return '<option value="'+tp+'"'+(f.type===tp?' selected':'')+'>'+tp.charAt(0).toUpperCase()+tp.slice(1)+'</option>'; }).join("");
 
-  function kindTab(k,label){ return '<button data-sum-kind="'+k+'" class="'+(f.kind===k?'on':'')+'">'+label+' ('+cnt[k]+')</button>'; }
+  var KIND_LABEL={all:"Everything",node:"Disabled",market:"Markets off",exclusion:"Re-enabled"};
+  function kindTab(k,label){ return '<button data-sum-kind="'+k+'" class="'+(f.kind===k?'on':'')+'">'+label+' <b>'+cnt[k]+'</b></button>'; }
   function chTab(c,label){ return '<button data-sum-ch="'+c+'" class="'+(f.channel===c?'on':'')+'">'+label+'</button>'; }
 
   var tagMap={sport:"SPT",category:"CAT",tournament:"TRN",event:"EVT",market:"MKT"};
   function kindBadge(it){
-    if(it.kind==='node') return '<span class="eff-badge eff-off">NODE OFF</span>';
-    if(it.kind==='market') return '<span class="eff-badge eff-off">MARKET OFF</span>';
-    return '<span class="eff-badge eff-exc">EXCLUSION</span>';
+    if(it.kind==='node') return '<span class="eff-badge eff-off">Disabled</span>';
+    if(it.kind==='market') return '<span class="eff-badge eff-off">Market off</span>';
+    return '<span class="eff-badge eff-exc">Re-enabled</span>';
   }
   var CAP=300;
   var trs=rows.slice(0,CAP).map(function(it){
     var tag=tagMap[it.type]||"";
     var chs=it.channels.map(function(c){ return '<span class="eff-badge '+(it.kind==='exclusion'?'eff-exc':'eff-off')+'">'+c+'</span>'; }).join(" ");
     var nameCell='<b>'+esc(it.name)+'</b>'+(it.kind!=='node'?' <span class="sub-muted">@ '+esc(it.node.name)+'</span>':'');
-    return '<tr><td>'+kindBadge(it)+'</td><td><span class="dim-tag '+tag+'">'+tag+'</span></td><td>'+nameCell+'</td><td class="c">'+chs+'</td><td class="ppath">'+esc(it.path)+'</td></tr>';
+    var au=issueAudit(it);
+    return '<tr><td>'+kindBadge(it)+'</td><td><span class="dim-tag '+tag+'">'+tag+'</span></td><td>'+nameCell+'<div class="ppath">'+esc(it.path)+'</div></td><td class="c">'+chs+'</td><td class="sum-who">'+esc(au.by)+'</td><td class="sum-when">'+esc(au.at)+'</td></tr>';
   }).join("");
-  var tableBody = rows.length? trs : '<tr><td colspan="5"><div class="empty-state">No disabled items match these filters.</div></td></tr>';
+  var tableBody = rows.length? trs : '<tr><td colspan="6"><div class="empty-state">Nothing matches these filters.</div></td></tr>';
   var moreNote = rows.length>CAP ? '<div class="sub-muted" style="padding:8px 2px">Showing first '+CAP+' of '+rows.length+' — narrow the filters to see the rest.</div>' : '';
 
+  var active = (f.kind!=="all"||f.sport||f.type||f.channel!=="both"||f.q);
   var filterBar='<div class="sum-filters">'
-    + '<div class="seg">'+kindTab("all","All")+kindTab("node","Nodes")+kindTab("market","Markets")+kindTab("exclusion","Exclusions")+'</div>'
-    + '<select class="input" id="sum-sport" style="min-width:150px">'+sportOpts+'</select>'
-    + '<select class="input" id="sum-type" style="min-width:130px">'+typeOpts+'</select>'
-    + '<div class="seg">'+chTab("both","Both")+chTab("live","Live")+chTab("prematch","Prematch")+'</div>'
-    + '<input class="search-box" id="sum-search" placeholder="Search name or path…" value="'+esc(f.q)+'" style="flex:1; min-width:160px; max-width:none">'
+    + '<div class="sum-fgroup"><span class="sum-flabel">Show</span><div class="seg">'+kindTab("all","Everything")+kindTab("node","Disabled")+kindTab("market","Markets off")+kindTab("exclusion","Re-enabled")+'</div></div>'
+    + '<div class="sum-fgroup"><span class="sum-flabel">Channel</span><div class="seg">'+chTab("both","Both")+chTab("live","Live")+chTab("prematch","Prematch")+'</div></div>'
+    + '<div class="sum-fgroup"><span class="sum-flabel">Sport</span><select class="input" id="sum-sport" style="min-width:150px">'+sportOpts+'</select></div>'
+    + '<div class="sum-fgroup"><span class="sum-flabel">Level</span><select class="input" id="sum-type" style="min-width:130px">'+typeOpts+'</select></div>'
+    + '<div class="sum-fgroup" style="flex:1; min-width:200px"><span class="sum-flabel">Search</span><input class="search-box" id="sum-search" placeholder="Name or location…" value="'+esc(f.q)+'" style="width:100%; max-width:none"></div>'
+    + (active?'<div class="sum-fgroup" style="align-self:flex-end"><button class="btn sm" id="sum-reset">Reset</button></div>':'')
   + '</div>';
 
-  var active = (f.kind!=="all"||f.sport||f.type||f.channel!=="both"||f.q);
-  var body = '<div class="info-banner">⚠️ Effective “what’s switched off” for <b>'+esc(partnerName(partner))+'</b>. Filter by kind, sport, level or channel to audit before going live.</div>'
+  var body = '<div class="info-banner">⚠️ Everything currently switched off for <b>'+esc(partnerName(partner))+'</b> across Live &amp; Prematch. Review before going live.</div>'
     + filterBar
-    + '<div class="sum-stat">Showing <b>'+rows.length+'</b> item'+(rows.length===1?'':'s')+' · '+cnt.node+' node'+(cnt.node===1?'':'s')+' off · '+cnt.market+' market rule'+(cnt.market===1?'':'s')+' · '+cnt.exclusion+' exclusion'+(cnt.exclusion===1?'':'s')+(active?' · <a href="#" id="sum-reset" style="color:var(--accent)">reset filters</a>':'')+'</div>'
-    + '<table class="grid sum-table"><thead><tr><th style="width:118px">Kind</th><th style="width:48px">Lvl</th><th>Item</th><th class="c" style="width:130px">Channels</th><th>Location</th></tr></thead><tbody>'+tableBody+'</tbody></table>'
+    + '<div class="sum-stat"><b>'+rows.length+'</b> result'+(rows.length===1?'':'s')+' &nbsp;·&nbsp; '+cnt.node+' disabled &nbsp;·&nbsp; '+cnt.market+' market'+(cnt.market===1?'':'s')+' off &nbsp;·&nbsp; '+cnt.exclusion+' re-enabled</div>'
+    + '<table class="grid sum-table"><thead><tr><th style="width:110px">Type</th><th style="width:46px">Level</th><th>Item &amp; location</th><th class="c" style="width:120px">Channels</th><th style="width:120px">Disabled by</th><th style="width:160px">When</th></tr></thead><tbody>'+tableBody+'</tbody></table>'
     + moreNote;
 
-  return shell('What’s Disabled — '+esc(partnerName(partner)), 'Effective coverage audit · live + prematch', body,
+  return shell('What’s Disabled — '+esc(partnerName(partner)), 'Effective coverage audit · Live + Prematch', body,
     '<button class="btn" id="sum-export">⤓ Export CSV</button><span class="spacer"></span><button class="btn primary" id="modal-close">Close</button>', true);
 }
 
@@ -2355,9 +2397,10 @@ function setPickPos(list, id, pos){ var a=pickArr(list).slice(); var i=a.indexOf
 function dropPick(list, dragId, targetId, after){ if(dragId===targetId)return; var a=pickArr(list).slice(); a.splice(a.indexOf(dragId),1); var ti=a.indexOf(targetId)+(after?1:0); a.splice(ti,0,dragId); setPickArr(list,a); }
 
 function setChannelCascade(node, ch, val){
-  node[ch].enabled=val;
+  var meta = !val ? nowAudit() : null;
+  node[ch].enabled=val; if(meta){ node.audit=node.audit||{}; node.audit[ch]=meta; }
   // cascade to descendants (set own flag so toggling parent back on restores)
-  (function walk(n){ n.childIds.forEach(function(id){ var c=NODES[id]; if(c.type!=="market"){ c[ch].enabled=val; walk(c);} }); })(node);
+  (function walk(n){ n.childIds.forEach(function(id){ var c=NODES[id]; if(c.type!=="market"){ c[ch].enabled=val; if(meta){ c.audit=c.audit||{}; c.audit[ch]=meta; } walk(c);} }); })(node);
 }
 
 // select a node and lay out the Miller columns down to it
