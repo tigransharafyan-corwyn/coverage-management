@@ -1397,7 +1397,12 @@ function marketTemplatesMainHtml(){
         + '<span class="ch-lbl pre">P</span><span class="sw mini '+(a.prematch?'on':'')+'" data-ch="prematch" data-tpl-toggle="'+selT.id+'" data-tpl-key="'+m.key+'" data-tpl-ch="prematch"><span class="track"></span></span></span>'
       + '</div>';
     }).join("") : '<div class="sub-muted" style="padding:14px; text-align:center">No markets match.</div>';
-    var bulkRow = '<div class="tpl-bulk-row"><span class="sub-muted">Bulk:</span><span class="ch-lbl live">Live</span><button class="btn sm" data-tpl-bulk="on" data-tpl-bulk-ch="live" data-tpl-id="'+selT.id+'">All</button><button class="btn sm" data-tpl-bulk="off" data-tpl-bulk-ch="live" data-tpl-id="'+selT.id+'">None</button><span class="ch-lbl pre" style="margin-left:10px">Prematch</span><button class="btn sm" data-tpl-bulk="on" data-tpl-bulk-ch="prematch" data-tpl-id="'+selT.id+'">All</button><button class="btn sm" data-tpl-bulk="off" data-tpl-bulk-ch="prematch" data-tpl-id="'+selT.id+'">None</button></div>';
+    var allL = allMk.length>0 && lc===allMk.length, allP = allMk.length>0 && pc===allMk.length;
+    var bulkRow = '<div class="tpl-bulk-row"><span class="sub-muted">All markets</span><span class="spacer"></span>'
+      + '<span class="mc-ch">'
+      + '<span class="ch-lbl live">L</span><span class="sw mini '+(allL?'on':'')+'" data-ch="live" data-tpl-bulk-tog="'+selT.id+'" data-tpl-bulk-ch="live" data-tpl-bulk-val="'+(allL?'off':'on')+'"><span class="track"></span></span>'
+      + '<span class="ch-lbl pre">P</span><span class="sw mini '+(allP?'on':'')+'" data-ch="prematch" data-tpl-bulk-tog="'+selT.id+'" data-tpl-bulk-ch="prematch" data-tpl-bulk-val="'+(allP?'off':'on')+'"><span class="track"></span></span>'
+      + '</span></div>';
     col3body = '<div class="tpl-detail-bar">'
         + '<input class="mg-name" value="'+esc(selT.name)+'" data-mt-rename="'+selT.id+'" style="flex:1; min-width:0">'
       + '</div>'
@@ -2148,7 +2153,7 @@ root.addEventListener("click", function(e){
   var mtasg=t.closest("[data-mt-assign]"); if(mtasg){ state.modal={type:"assign", templateId:mtasg.getAttribute("data-mt-assign"), exp:new Set(), q:""}; render(); return; }
   var mtdel=t.closest("[data-mt-del]"); if(mtdel){ e.stopPropagation(); state.modal={type:"delete-template", templateId:mtdel.getAttribute("data-mt-del"), showAssignments:false}; render(); return; }
   var tpt=t.closest("[data-tpl-toggle]"); if(tpt){ var ttog=TEMPLATES[tpt.getAttribute("data-tpl-toggle")]; var tk=tpt.getAttribute("data-tpl-key"); var tch=tpt.getAttribute("data-tpl-ch"); setTmplAvail(ttog, tk, tch, !tmplAvail(ttog,tk)[tch]); render(); return; }
-  var tbk=t.closest("[data-tpl-bulk]"); if(tbk){ var tbt=TEMPLATES[tbk.getAttribute("data-tpl-id")]; var bch=tbk.getAttribute("data-tpl-bulk-ch"); var bval=tbk.getAttribute("data-tpl-bulk")==="on"; marketsFor(tbt.sport).forEach(function(m){ setTmplAvail(tbt, m.key, bch, bval); }); render(); return; }
+  var tbk=t.closest("[data-tpl-bulk-tog]"); if(tbk){ var tbt=TEMPLATES[tbk.getAttribute("data-tpl-bulk-tog")]; var bch=tbk.getAttribute("data-tpl-bulk-ch"); var bval=tbk.getAttribute("data-tpl-bulk-val")==="on"; marketsFor(tbt.sport).forEach(function(m){ setTmplAvail(tbt, m.key, bch, bval); }); render(); return; }
   if(t.closest("[data-mt-rename]")){ return; }   // name input — don't select row
   var mttsel=t.closest("[data-mt-tpl-sel]"); if(mttsel){ state.mtTplSel=mttsel.getAttribute("data-mt-tpl-sel"); render(); return; }
 
