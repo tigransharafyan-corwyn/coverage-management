@@ -279,7 +279,8 @@
   .navtab { display:inline-flex; align-items:center; gap:8px; border:1px solid var(--border-strong); background:#fff; border-radius:9px; padding:9px 15px; cursor:pointer; font-size:13px; font-weight:600; color:#475569; }
   .navtab:hover { border-color:var(--accent); color:var(--accent); }
   .navtab.on { background:var(--accent); border-color:var(--accent); color:#fff; }
-  .navtab .nt-ic { font-size:14px; }
+  .navtab .nt-ic { font-size:14px; display:inline-flex; align-items:center; }
+  .navtab .nt-ic svg { display:block; width:15px; height:15px; }
   .navtab .nt-18 { font-size:10px; font-weight:800; letter-spacing:.3px; border:1.5px solid currentColor; border-radius:5px; padding:1px 4px; line-height:1; }
   .navtab-badge { background:rgba(16,24,40,.08); color:var(--muted); border-radius:999px; padding:1px 8px; font-size:11px; font-weight:700; }
   .navtab.on .navtab-badge { background:rgba(255,255,255,.25); color:#fff; }
@@ -1013,7 +1014,7 @@ function navTabsHtml(){
     + tab("age-groups","<span class=\"nt-18\">18+</span>","Age Groups", null)
     + tab("market-templates","◳","Market Templates", null)
     + tab("market-groups","▤","Market Groups", null)
-    + tab("feed-distribution","🛰","Feed Distribution", null)
+    + tab("feed-distribution","<svg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'><circle cx='104' cy='256' r='86' fill='currentColor'/><circle cx='452' cy='66' r='50' fill='currentColor'/><circle cx='452' cy='256' r='50' fill='currentColor'/><circle cx='452' cy='446' r='50' fill='currentColor'/><g stroke='currentColor' stroke-width='28' stroke-linecap='round' stroke-linejoin='round' fill='none'><path d='M168 256 H322'/><path d='M296 224 L334 256 L296 288'/><path d='M158 196 C158 92 168 66 268 66 H322'/><path d='M296 34 L334 66 L296 98'/><path d='M158 316 C158 420 168 446 268 446 H322'/><path d='M296 414 L334 446 L296 478'/></g></svg>","Feed Distribution", null)
   + '</div>';
 }
 
