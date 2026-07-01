@@ -1136,8 +1136,7 @@ function ageCovBulkModal(){
     + '</div>';
   }).join("");
   var touchedCount=Object.keys(m.touched||{}).length;
-  var body='<div class="info-banner blue">ℹ️ Toggle each age group on or off, then <b>Apply</b>. Changes cascade to every tournament (and its events) carrying that age group, for both Live and Prematch.</div>'
-    + '<div class="mp-list">'+rows+'</div>';
+  var body='<div class="mp-list">'+rows+'</div>';
   return shell('Enable / Disable by Age Group', 'bulk toggle coverage by tournament age group', body,
     '<span class="sub-muted spacer">'+touchedCount+' change'+(touchedCount===1?"":"s")+' staged</span><button class="btn" id="modal-close">Cancel</button><button class="btn primary" data-agc-apply '+(touchedCount?"":"disabled")+'>Apply</button>');
 }
