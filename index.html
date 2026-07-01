@@ -483,6 +483,8 @@
   .sum-filters { display:flex; gap:14px 16px; flex-wrap:wrap; align-items:flex-end; margin-bottom:12px; }
   .sum-fgroup { display:flex; flex-direction:column; gap:5px; }
   .sum-flabel { font-size:9.5px; font-weight:700; text-transform:uppercase; letter-spacing:.5px; color:var(--muted); }
+  .sum-flabel.is-off { opacity:.45; }
+  .sum-filters select:disabled { opacity:.45; cursor:not-allowed; background:var(--bg); }
   .sum-filters .seg button b { font-weight:700; opacity:.75; margin-left:3px; }
   .sum-filters .seg button.on b { opacity:1; }
   .sum-stat { font-size:11.5px; color:var(--muted); margin-bottom:8px; }
@@ -2215,7 +2217,7 @@ function levelOf(it){ return it.type; }                                    // wh
 function dateBoundTs(str, end){ if(!str) return null; var p=str.split("-"); if(p.length!==3) return null; var y=+p[0],m=+p[1],d=+p[2]; return end? new Date(y,m-1,d,23,59,59,999).getTime() : new Date(y,m-1,d,0,0,0,0).getTime(); }
 function issuePasses(it, f){
   if(f.entity && entityOf(it)!==f.entity) return false;
-  if(f.level && levelOf(it)!==f.level) return false;
+  if(f.entity==="market" && f.level && levelOf(it)!==f.level) return false;   // Level only applies to markets
   if(f.channel==="live" && it.channels.indexOf("Live")===-1) return false;
   if(f.channel==="prematch" && it.channels.indexOf("Prematch")===-1) return false;
   if(f.user || f.dateFrom || f.dateTo){
@@ -2257,7 +2259,9 @@ function disabledSummaryModal(){
 
   var ENT=[["sport","Sport"],["category","Category"],["tournament","Tournament"],["event","Event"],["market","Market"]];
   var entityOpts='<option value="">All entities</option>'+ENT.map(function(o){ return '<option value="'+o[0]+'"'+(f.entity===o[0]?' selected':'')+'>'+o[1]+'</option>'; }).join("");
-  var levelOpts='<option value="">All levels</option>'+ENT.map(function(o){ return '<option value="'+o[0]+'"'+(f.level===o[0]?' selected':'')+'>'+o[1]+'</option>'; }).join("");
+  var levelActive = f.entity==="market";                                   // Level only matters for markets
+  var MKT_LEVELS=[["sport","Sport"],["tournament","Tournament"],["event","Event"]];
+  var levelOpts='<option value="">All levels</option>'+MKT_LEVELS.map(function(o){ return '<option value="'+o[0]+'"'+(f.level===o[0]?' selected':'')+'>'+o[1]+'</option>'; }).join("");
   var usersPresent={}; all.forEach(function(it){ usersPresent[issueAudit(it).by]=1; });
   var userOpts='<option value="">All users</option>'+Object.keys(usersPresent).sort().map(function(u){ return '<option value="'+esc(u)+'"'+(f.user===u?' selected':'')+'>'+esc(u)+'</option>'; }).join("");
 
@@ -2283,7 +2287,7 @@ function disabledSummaryModal(){
   var active = (f.entity||f.level||f.channel!=="both"||f.user||f.dateFrom||f.dateTo||f.q);
   var filterBar='<div class="sum-filters">'
     + '<div class="sum-fgroup"><span class="sum-flabel">Disabled entity</span><select class="input" id="sum-entity" style="min-width:140px">'+entityOpts+'</select></div>'
-    + '<div class="sum-fgroup"><span class="sum-flabel">Level</span><select class="input" id="sum-level" style="min-width:140px">'+levelOpts+'</select></div>'
+    + '<div class="sum-fgroup"><span class="sum-flabel'+(levelActive?'':' is-off')+'">Level</span><select class="input" id="sum-level" style="min-width:140px" '+(levelActive?'':'disabled title="Level applies only when Disabled entity = Market"')+'>'+levelOpts+'</select></div>'
     + '<div class="sum-fgroup"><span class="sum-flabel">Channel</span><div class="seg">'+chTab("both","Both")+chTab("live","Live")+chTab("prematch","Prematch")+'</div></div>'
     + '<div class="sum-fgroup"><span class="sum-flabel">From</span><input class="input" type="date" id="sum-date-from" value="'+esc(f.dateFrom)+'"></div>'
     + '<div class="sum-fgroup"><span class="sum-flabel">To</span><input class="input" type="date" id="sum-date-to" value="'+esc(f.dateTo)+'"></div>'
@@ -2670,7 +2674,7 @@ modalRoot.addEventListener("input", function(e){
   if(e.target.id==="age-new-input"){ state.modal.name=e.target.value; render(); var eln=document.getElementById("age-new-input"); if(eln){eln.focus(); var vn=eln.value; eln.setSelectionRange(vn.length,vn.length);} return; }
 });
 modalRoot.addEventListener("change", function(e){
-  if(e.target.id==="sum-entity"){ state.summaryFilters.entity=e.target.value; render(); return; }
+  if(e.target.id==="sum-entity"){ state.summaryFilters.entity=e.target.value; if(e.target.value!=="market") state.summaryFilters.level=""; render(); return; }
   if(e.target.id==="sum-level"){ state.summaryFilters.level=e.target.value; render(); return; }
   if(e.target.id==="sum-user"){ state.summaryFilters.user=e.target.value; render(); return; }
   if(e.target.id==="sum-date-from"){ state.summaryFilters.dateFrom=e.target.value; render(); return; }
