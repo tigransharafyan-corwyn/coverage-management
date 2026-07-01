@@ -1129,10 +1129,10 @@ function ageCovBulkModal(){
   if(!m.draft){ m.draft={}; m.touched={};
     groups.forEach(function(g){ m.draft[g.key]={ on: g.list.every(function(n){return n.live.enabled && n.prematch.enabled;}) }; });
   }
-  var rows=groups.map(function(g){ var d=m.draft[g.key]||{on:false};
+  var rows=groups.map(function(g){ var d=m.draft[g.key]||{on:false}; var n=g.list.length;
     return '<div class="mp-row" style="cursor:default">'
-      + '<span class="mp-name" style="flex:1">'+esc(g.label)+' <span class="sub-muted">· '+g.list.length+' trn</span></span>'
-      + '<span class="mc-ch"><span class="ch-lbl" style="color:var(--muted)">'+(d.on?'Enabled':'Disabled')+'</span><span class="sw mini '+(d.on?"on":"")+'" data-ch="both" data-agc-tog="'+esc(g.key)+'"><span class="track"></span></span></span>'
+      + '<span class="mp-name" style="flex:1">'+esc(g.label)+' <span class="sub-muted">· '+n+' tournament'+(n===1?'':'s')+'</span></span>'
+      + '<span class="mc-ch" style="gap:10px"><span class="sub-muted" style="font-size:12px; min-width:56px; text-align:right">'+(d.on?'Enabled':'Disabled')+'</span><span class="sw mini '+(d.on?"on":"")+'" data-ch="both" data-agc-tog="'+esc(g.key)+'"><span class="track"></span></span></span>'
     + '</div>';
   }).join("");
   var touchedCount=Object.keys(m.touched||{}).length;
