@@ -1565,7 +1565,7 @@ function marketTemplatesMainHtml(){
   var tShown = tq? tmpls.filter(function(t){ return t.name.toLowerCase().indexOf(tq)!==-1; }) : tmpls;
   var tplRows = tShown.length? tShown.map(function(t){ var on=t.id===state.mtTplSel; var inc=0;
       allMk.forEach(function(m){ var a=tmplAvail(t,m.key); if(a.live||a.prematch)inc++; });
-      return '<div class="mcol-row'+(on?' sel':'')+'" data-mt-tpl-sel="'+t.id+'"><span class="mc-main"><span class="mc-name">'+esc(t.name)+'</span><span class="mc-cnt">'+inc+'</span></span>'
+      return '<div class="mcol-row'+(on?' sel':'')+'" data-mt-tpl-sel="'+t.id+'"><span class="mc-main"><input class="mg-name" id="mtname-'+t.id+'" value="'+esc(t.name)+'" data-mt-rename="'+t.id+'"><span class="mc-cnt">'+inc+'</span></span>'
         + '<button class="btn sm" data-mt-clone="'+t.id+'">Clone</button>'
         + '<button class="btn sm" data-mt-assign="'+t.id+'">Assign…</button>'
         + '<button class="icon-btn" data-mt-del="'+t.id+'" title="Delete template">✕</button><span class="mc-chev">'+CHEVRON+'</span></div>';
@@ -2457,7 +2457,7 @@ root.addEventListener("click", function(e){
   var mtdel=t.closest("[data-mt-del]"); if(mtdel){ e.stopPropagation(); state.modal={type:"delete-template", templateId:mtdel.getAttribute("data-mt-del"), showAssignments:false}; render(); return; }
   var tpt=t.closest("[data-tpl-toggle]"); if(tpt){ var ttog=TEMPLATES[tpt.getAttribute("data-tpl-toggle")]; var tk=tpt.getAttribute("data-tpl-key"); var tch=tpt.getAttribute("data-tpl-ch"); setTmplAvail(ttog, tk, tch, !tmplAvail(ttog,tk)[tch]); render(); return; }
   var tbk=t.closest("[data-tpl-bulk-tog]"); if(tbk){ var tbt=TEMPLATES[tbk.getAttribute("data-tpl-bulk-tog")]; var bch=tbk.getAttribute("data-tpl-bulk-ch"); var bval=tbk.getAttribute("data-tpl-bulk-val")==="on"; marketsFor(tbt.sport).forEach(function(m){ setTmplAvail(tbt, m.key, bch, bval); }); render(); return; }
-  if(t.closest("[data-mt-rename]")){ return; }   // name input — don't select row
+  var mtrn=t.closest("[data-mt-rename]"); if(mtrn){ var rtid=mtrn.getAttribute("data-mt-rename"); if(state.mtTplSel!==rtid){ state.mtTplSel=rtid; render(); } return; }
   var mttsel=t.closest("[data-mt-tpl-sel]"); if(mttsel){ state.mtTplSel=mttsel.getAttribute("data-mt-tpl-sel"); render(); return; }
 
   // market-groups page (3 columns)
