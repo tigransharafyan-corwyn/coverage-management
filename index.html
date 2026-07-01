@@ -290,6 +290,8 @@
   .mcol-row:hover { background:var(--row-hover); }
   .mcol-row.sel { background:var(--accent-soft); border-color:var(--accent); }
   .mcol-row.dragging { opacity:.4; }
+  .drop-before { box-shadow: inset 0 3px 0 var(--accent); }
+  .drop-after { box-shadow: inset 0 -3px 0 var(--accent); }
   .mcol-row.dim .mc-name { color:var(--muted); }
   .mc-main { flex:1; min-width:0; display:flex; align-items:center; gap:7px; }
   .mc-ic { font-size:15px; line-height:1; flex-shrink:0; width:20px; text-align:center; }
@@ -855,6 +857,8 @@ var state = {
   agpSportSel: "",           // age-groups page: selected sport (column 1)
   agpCatSel: "",             // age-groups page: selected category (column 2)
   colSearch: {},             // coverage Miller columns: per-column (pkey) search query
+  fdSel: {},                 // feed-distribution: selected child per parentKey
+  fdSearch: {},              // feed-distribution: per-column search
   country: "default",        // coverage: country context for priority ordering ("default" = base)
   countryMenuOpen: false,
   mtSport: "",               // market-templates page: selected sport
@@ -881,6 +885,7 @@ var state = {
 // select the first sport by default
 state.colSel["root"] = ROOT_IDS[0];
 state.focusId = ROOT_IDS[0];
+state.fdSel["root"] = ROOT_IDS[0];
 
 /* ----------------------------- SVG ----------------------------- */
 var CHEVRON = '<svg viewBox="0 0 16 16" fill="none"><path d="M6 4l4 4-4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
@@ -962,6 +967,7 @@ function mainViewHtml(){
   if(state.view==="age-groups") return ageGroupsMainHtml();
   if(state.view==="market-templates") return marketTemplatesMainHtml();
   if(state.view==="market-groups") return marketGroupsMainHtml();
+  if(state.view==="feed-distribution") return feedDistributionMainHtml();
   return coverageMainHtml();
 }
 
@@ -978,6 +984,7 @@ function navTabsHtml(){
     + tab("age-groups","<span class=\"nt-18\">18+</span>","Age Groups", null)
     + tab("market-templates","◳","Market Templates", null)
     + tab("market-groups","▤","Market Groups", null)
+    + tab("feed-distribution","🛰","Feed Distribution", null)
   + '</div>';
 }
 
@@ -1460,6 +1467,53 @@ function marketGroupsMainHtml(){
   return '<div class="panel">'
     + '<div class="panel-head"><h2>Market Groups</h2><span class="hint">pick a sport → group · search to add markets · drag or set group priority</span></div>'
     + '<div class="panel-body" style="padding:12px"><div class="mcols">'+col1+col2+col3+'</div></div>'
+  + '</div>';
+}
+
+/* ---------- feed distribution view: provider priority per client, all levels ---------- */
+function fdColumnChain(){
+  var cols=[{pkey:"root", parent:null, level:"sport"}];
+  var sel=state.fdSel["root"];
+  while(sel && NODES[sel] && NODES[sel].childIds.length){
+    var pn=NODES[sel];
+    cols.push({pkey:pn.id, parent:pn, level:childLevelOf(pn.type)});
+    sel=state.fdSel[pn.id];
+  }
+  return cols;
+}
+function fdProviderBadge(node){
+  var partner=state.partner, provs=node.providers[partner];
+  if(provs&&provs.length) return '<span class="pbadge" data-providers="'+node.id+'"><span class="prio">1</span>'+esc(provs[0])+(provs.length>1?(' +'+(provs.length-1)):'')+'</span>';
+  var inh=null,p=node.parentId; while(p){ if(NODES[p].providers[partner]){ inh=NODES[p].providers[partner]; break;} p=NODES[p].parentId; }
+  return '<span class="pbadge" data-providers="'+node.id+'" style="color:var(--muted)">'+(inh?'↑ '+esc(inh[0])+(inh.length>1?(' +'+(inh.length-1)):''):'+ set')+'</span>';
+}
+function fdColHtml(col){
+  var base=(col.parent?col.parent.childIds:ROOT_IDS).map(function(id){return NODES[id];});
+  var ordered=base.slice().sort(function(a,b){return getOrd(a)-getOrd(b)||a.name.localeCompare(b.name,undefined,{numeric:true});});
+  var q=(state.fdSearch[col.pkey]||"").toLowerCase();
+  var shown=q?ordered.filter(function(n){return n.name.toLowerCase().indexOf(q)!==-1;}):ordered;
+  var sel=state.fdSel[col.pkey];
+  var rows=shown.length? shown.map(function(n){
+    var hasKids=n.type!=="market"&&n.childIds.length>0;
+    return '<div class="mcol-row'+(sel===n.id?' sel':'')+'" data-fd-row="'+n.id+'" data-pkey="'+col.pkey+'">'
+      + '<span class="mc-main">'+(iconFor(n)?'<span class="mc-ic">'+iconFor(n)+'</span>':'')+'<span class="mc-name">'+esc(n.name)+'</span>'+(hasKids?'<span class="mc-cnt">'+n.childIds.length+'</span>':'')+'</span>'
+      + '<span class="mc-ch">'+fdProviderBadge(n)+'</span>'
+      + (hasKids?'<span class="mc-chev">'+CHEVRON+'</span>':'<span style="width:14px"></span>')
+    + '</div>';
+  }).join("") : '<div class="sub-muted" style="padding:14px; text-align:center">No items'+(q?' match':'')+'.</div>';
+  var label=LEVEL_LABEL[col.level]||"Items";
+  return '<div class="mcol" data-col="fd-'+col.pkey+'"><div class="mcol-head"><span class="lv">'+label+'</span><span class="cnt">'+shown.length+'</span></div>'
+    + '<div class="mcol-search"><input class="mcol-search-in" id="fd-search-'+col.pkey+'" data-fd-search="'+col.pkey+'" placeholder="Search '+esc(label.toLowerCase())+'…" value="'+esc(state.fdSearch[col.pkey]||"")+'"></div>'
+    + '<div class="mcol-body">'+rows+'</div></div>';
+}
+function feedDistributionMainHtml(){
+  var cols=fdColumnChain();
+  return '<div class="panel">'
+    + '<div class="panel-head"><h2>Feed Distribution</h2><span class="hint">feed-provider priority for <b>'+esc(partnerName(state.partner))+'</b> · set at any level; deeper levels override</span></div>'
+    + '<div class="panel-body" style="padding:12px">'
+      + '<div class="info-banner blue">ℹ️ Click a provider chip on any row to manage &amp; prioritize feed providers for that Sport / Category / Tournament / Event / Market. Priority is per client (partner) and inherited downward unless overridden.</div>'
+      + '<div class="mcols">'+cols.map(fdColHtml).join("")+'</div>'
+    + '</div>'
   + '</div>';
 }
 
@@ -2100,6 +2154,9 @@ root.addEventListener("click", function(e){
   if(t.closest("[data-mg-rename]")){ return; }
   var mggs=t.closest("[data-mg-group-sel]"); if(mggs){ if(t.closest(".spin")) return; state.mgGroupSel=mggs.getAttribute("data-mg-group-sel"); render(); return; }
 
+  // feed-distribution: drill selection (badge clicks fall through to the providers modal)
+  var fdr=t.closest("[data-fd-row]"); if(fdr && !t.closest("[data-providers]")){ var fn=NODES[fdr.getAttribute("data-fd-row")]; state.fdSel={}; var ch=ancestors(fn).concat(fn); var pk="root"; ch.forEach(function(n){ state.fdSel[pk]=n.id; pk=n.id; }); render(); return; }
+
   // market enable/disable toggle (writes to the level node's market rules)
   var msw=t.closest("[data-mkt-key]"); if(msw){ var mn=NODES[msw.getAttribute("data-mkt-node")]; var mk=msw.getAttribute("data-mkt-key"); var mch=msw.getAttribute("data-mkt-ch"); var curOn=effMarket(mn,mk,mch).state==='on'; setMarketChannel(mn,mk,mch,!curOn); render(); return; }
 
@@ -2142,6 +2199,7 @@ root.addEventListener("input", function(e){
   if(e.target.id==="mt-tpl-search"){ state.mtTplSearch=e.target.value; render(); var elt=document.getElementById("mt-tpl-search"); if(elt){elt.focus(); var vt=elt.value; elt.setSelectionRange(vt.length,vt.length);} return; }
   if(e.target.id==="mt-mk-search"){ state.mtMkQ=e.target.value; render(); var elm=document.getElementById("mt-mk-search"); if(elm){elm.focus(); var vm=elm.value; elm.setSelectionRange(vm.length,vm.length);} return; }
   if(e.target.id==="mg-mk-search"){ state.mgMkQ=e.target.value; render(); var elk=document.getElementById("mg-mk-search"); if(elk){elk.focus(); var vk=elk.value; elk.setSelectionRange(vk.length,vk.length);} return; }
+  if(e.target.hasAttribute && e.target.hasAttribute("data-fd-search")){ var fk=e.target.getAttribute("data-fd-search"); state.fdSearch[fk]=e.target.value; render(); var fe=document.getElementById("fd-search-"+fk); if(fe){fe.focus(); var fv=fe.value; fe.setSelectionRange(fv.length,fv.length);} return; }
   if(e.target.classList && e.target.classList.contains("mcol-search-in")){ state.colSearch[e.target.getAttribute("data-col-search")]=e.target.value; render(); return; }
   if(e.target.id==="agp-search"){ state.agpSearch=e.target.value; render(); return; }
   if(e.target.id==="mg-add-search"){ state.mgAddQ=e.target.value; render(); var elx=document.getElementById("mg-add-search"); if(elx){elx.focus(); var vx=elx.value; elx.setSelectionRange(vx.length,vx.length);} return; }
@@ -2170,17 +2228,25 @@ root.addEventListener("dragstart", function(e){
   var rg=e.target.closest("[data-drag-mg]");
   if(rg){ dragMg=rg.getAttribute("data-drag-mg"); e.dataTransfer.effectAllowed="move"; try{e.dataTransfer.setData("text/plain",dragMg);}catch(_){} rg.classList.add("dragging"); }
 });
+function clearDropLine(){ document.querySelectorAll(".drop-before,.drop-after").forEach(function(x){ x.classList.remove("drop-before","drop-after"); }); }
+function setDropLine(el, after){ clearDropLine(); if(el) el.classList.add(after?"drop-after":"drop-before"); }
 root.addEventListener("dragover", function(e){
-  if(dragId && e.target.closest("[data-drag-node]")){ e.preventDefault(); e.dataTransfer.dropEffect="move"; return; }
-  if(dragPick && e.target.closest("[data-drag-pick]")){ e.preventDefault(); e.dataTransfer.dropEffect="move"; return; }
-  if(dragMg && e.target.closest("[data-drag-mg]")){ e.preventDefault(); e.dataTransfer.dropEffect="move"; }
+  var r=null;
+  if(dragId) r=e.target.closest("[data-drag-node]");
+  else if(dragMg) r=e.target.closest("[data-drag-mg]");
+  else if(dragPick) r=e.target.closest("[data-drag-pick]");
+  else return;
+  if(!r) return;
+  e.preventDefault(); e.dataTransfer.dropEffect="move";
+  var rc=r.getBoundingClientRect(); setDropLine(r, e.clientY>rc.top+rc.height/2);
 });
 root.addEventListener("drop", function(e){
+  clearDropLine();
   if(dragId){ var r=e.target.closest("[data-drag-node]"); if(r){ e.preventDefault(); var tid=r.getAttribute("data-drag-node"); if(tid!==dragId){ var rc=r.getBoundingClientRect(); dropReorder(NODES[dragId], NODES[tid], e.clientY>rc.top+rc.height/2); } } dragId=null; render(); return; }
   if(dragMg){ var rg=e.target.closest("[data-drag-mg]"); if(rg){ e.preventDefault(); var tgid=rg.getAttribute("data-drag-mg"); if(tgid!==dragMg){ var rcg=rg.getBoundingClientRect(); dropGroup(state.mgSport, dragMg, tgid, e.clientY>rcg.top+rcg.height/2); } } dragMg=null; render(); return; }
   if(dragPick){ var rp=e.target.closest("[data-drag-pick]"); if(rp){ e.preventDefault(); var tpid=rp.getAttribute("data-drag-pick"); if(tpid!==dragPick.id){ var rc2=rp.getBoundingClientRect(); dropPick(dragPick.list, dragPick.id, tpid, e.clientY>rc2.top+rc2.height/2); } } dragPick=null; render(); }
 });
-root.addEventListener("dragend", function(){ if(dragId||dragPick||dragMg){ dragId=null; dragPick=null; dragMg=null; render(); } });
+root.addEventListener("dragend", function(){ clearDropLine(); if(dragId||dragPick||dragMg){ dragId=null; dragPick=null; dragMg=null; render(); } });
 
 /* ----- modal events ----- */
 modalRoot.addEventListener("click", function(e){
@@ -2274,9 +2340,9 @@ modalRoot.addEventListener("keydown", function(e){ if(e.key==="Enter" && e.targe
 /* market-priority drag & drop inside the settings modal */
 var dragMp=null;
 modalRoot.addEventListener("dragstart", function(e){ var r=e.target.closest("[data-mp-key]"); if(!r)return; dragMp=r.getAttribute("data-mp-key"); e.dataTransfer.effectAllowed="move"; try{e.dataTransfer.setData("text/plain",dragMp);}catch(_){} r.classList.add("dragging"); });
-modalRoot.addEventListener("dragover", function(e){ if(dragMp && e.target.closest("[data-mp-key]")){ e.preventDefault(); e.dataTransfer.dropEffect="move"; } });
-modalRoot.addEventListener("drop", function(e){ if(!dragMp)return; var r=e.target.closest("[data-mp-key]"); if(r){ e.preventDefault(); var tk=r.getAttribute("data-mp-key"); if(tk!==dragMp){ var rc=r.getBoundingClientRect(); dropMarketPrio(NODES[state.modal.nodeId], dragMp, tk, e.clientY>rc.top+rc.height/2); } } dragMp=null; render(); });
-modalRoot.addEventListener("dragend", function(){ if(dragMp){ dragMp=null; render(); } });
+modalRoot.addEventListener("dragover", function(e){ if(dragMp){ var r=e.target.closest("[data-mp-key]"); if(r){ e.preventDefault(); e.dataTransfer.dropEffect="move"; var rc=r.getBoundingClientRect(); setDropLine(r, e.clientY>rc.top+rc.height/2); } } });
+modalRoot.addEventListener("drop", function(e){ clearDropLine(); if(!dragMp)return; var r=e.target.closest("[data-mp-key]"); if(r){ e.preventDefault(); var tk=r.getAttribute("data-mp-key"); if(tk!==dragMp){ var rc=r.getBoundingClientRect(); dropMarketPrio(NODES[state.modal.nodeId], dragMp, tk, e.clientY>rc.top+rc.height/2); } } dragMp=null; render(); });
+modalRoot.addEventListener("dragend", function(){ clearDropLine(); if(dragMp){ dragMp=null; render(); } });
 function provMove(i,d){ var n=NODES[state.modal.nodeId]; var arr=(n.providers[state.partner]||[]).slice(); var j=i+d; if(j<0||j>=arr.length)return; var tmp=arr[i];arr[i]=arr[j];arr[j]=tmp; n.providers[state.partner]=arr; render(); }
 function provDel(i){ var n=NODES[state.modal.nodeId]; var arr=(n.providers[state.partner]||[]).slice(); arr.splice(i,1); n.providers[state.partner]=arr; render(); }
 function provAdd(){ var sel=document.getElementById("prov-add-sel"); if(!sel||!sel.value)return; var n=NODES[state.modal.nodeId]; var arr=(n.providers[state.partner]||[]).slice(); arr.push(sel.value); n.providers[state.partner]=arr; render(); }
