@@ -241,6 +241,7 @@
   .prov-row .pnum { width:22px; height:22px; border-radius:6px; background:var(--accent); color:#fff; font-weight:700; display:inline-flex; align-items:center; justify-content:center; font-size:11px;}
   .prov-row .pname { font-weight:600; flex:1;}
   .prov-row .pmeta { color:var(--muted); font-size:11px;}
+  .fdb-ovr { display:flex; align-items:center; gap:9px; margin-top:14px; font-size:12.5px; color:var(--text); cursor:pointer; }
 
   .tmpl-card { border:1px solid var(--border); border-radius:10px; padding:12px 14px; margin-bottom:10px; }
   .tmpl-card.applied { border-color:var(--accent); background:var(--accent-soft);}
@@ -1547,12 +1548,57 @@ function fdColHtml(col){
 function feedDistributionMainHtml(){
   var cols=fdColumnChain();
   return '<div class="panel">'
-    + '<div class="panel-head"><h2>Feed Distribution</h2><span class="hint">feed-provider priority for <b>'+esc(partnerName(state.partner))+'</b> · set at any level; deeper levels override</span></div>'
+    + '<div class="panel-head"><h2>Feed Distribution</h2><span class="hint">feed-provider priority for <b>'+esc(partnerName(state.partner))+'</b> · set at any level; deeper levels override</span><span class="spacer"></span><button class="btn sm primary" data-fd-bulk-open>Bulk assign…</button></div>'
     + '<div class="panel-body" style="padding:12px">'
       + '<div class="info-banner blue">ℹ️ Click a provider chip on any row to manage &amp; prioritize feed providers for that Sport / Tournament / Event / Market. Priority is per client (partner) and inherited downward unless overridden.</div>'
       + '<div class="mcols">'+cols.map(fdColHtml).join("")+'</div>'
     + '</div>'
   + '</div>';
+}
+
+/* --- bulk-assign feed providers across an entire level --- */
+function countNodesOfType(type){ var c=0; Object.keys(NODES).forEach(function(id){ if(NODES[id].type===type) c++; }); return c; }
+function fdBulkModal(){
+  var m=state.modal, scope=m.scope||"sport", list=m.draft||[];
+  var SCOPES=[
+    {k:"sport",label:"All sports"},
+    {k:"tournament",label:"All tournaments"},
+    {k:"event",label:"All events"},
+    {k:"market",label:"All markets"}
+  ];
+  var scopeList = SCOPES.map(function(s){
+    return '<div class="ms-opt ms-plain'+(scope===s.k?' sel':'')+'" data-fdb-scope="'+s.k+'"><span class="dim-tag '+LEVEL_TAG[s.k]+'">'+LEVEL_TAG[s.k]+'</span> '+esc(s.label)+' <span class="sub-muted" style="margin-left:6px">· '+countNodesOfType(s.k)+' node'+(countNodesOfType(s.k)===1?'':'s')+'</span></div>';
+  }).join("");
+  var rows = list.length? list.map(function(name,i){
+    return '<div class="prov-row"><span class="grab">⋮⋮</span><span class="pnum">'+(i+1)+'</span>'+provLogo(name)+'<span class="pname">'+esc(name)+'</span><span class="pmeta">priority '+(i+1)+'</span>'
+      + '<button class="icon-btn" data-prov-up="'+i+'" '+(i===0?'disabled':'')+'>▲</button>'
+      + '<button class="icon-btn" data-prov-down="'+i+'" '+(i===list.length-1?'disabled':'')+'>▼</button>'
+      + '<button class="icon-btn" data-prov-del="'+i+'" title="Remove">✕</button></div>';
+  }).join("") : '<div class="sub-muted" style="padding:6px 0 12px">No providers added — set a priority order below (leaving it empty will clear providers on the chosen level).</div>';
+  var avail = PROVIDERS.filter(function(pr){ return list.indexOf(pr)===-1; });
+  var addSel = '<select class="input" id="prov-add-sel" style="min-width:200px"><option value="">Add provider…</option>'
+    + avail.map(function(pr){ return '<option value="'+esc(pr)+'">'+esc(pr)+'</option>'; }).join("") + '</select>';
+  var override = m.override!==false;
+  var body = '<div class="stpl-choose-label">Apply to</div>'
+    + '<div class="ms-plain-list" style="border:1px solid var(--border); border-radius:9px; overflow:hidden; margin-bottom:14px">'+scopeList+'</div>'
+    + '<div class="stpl-choose-label">Provider priority</div>'
+    + rows
+    + '<div style="display:flex; gap:8px; margin-top:10px">'+addSel+'<button class="btn" id="prov-add-btn">Add</button></div>'
+    + '<label class="fdb-ovr"><span class="sw mini '+(override?'on':'')+'" data-ch="live" data-fdb-override><span class="track"></span></span> Override levels that already have their own providers</label>';
+  var scopeLabel=(SCOPES.filter(function(s){return s.k===scope;})[0]||{}).label;
+  return shell('Bulk Assign Feed Providers',
+    'for <b>'+esc(partnerName(state.partner))+'</b> · applies to <b>'+esc(scopeLabel)+'</b>',
+    body,
+    '<span class="sub-muted spacer">Priority is per client · deeper levels can still override</span><button class="btn" id="modal-close">Cancel</button><button class="btn primary" data-fd-bulk-apply>Apply</button>');
+}
+function fdBulkApply(){
+  var m=state.modal, scope=m.scope||"sport", arr=(m.draft||[]).slice(), override=m.override!==false, partner=state.partner, count=0;
+  Object.keys(NODES).forEach(function(id){ var n=NODES[id]; if(n.type!==scope) return;
+    if(!override && n.providers[partner] && n.providers[partner].length) return;
+    if(arr.length) n.providers[partner]=arr.slice(); else delete n.providers[partner];
+    count++;
+  });
+  state.modal=null; render();
 }
 
 /* --- delete market group confirmation --- */
@@ -1675,6 +1721,7 @@ function modalHtml(){
   var m=state.modal;
   switch(m.type){
     case "providers": return providerModal(NODES[m.nodeId]);
+    case "fd-bulk": return fdBulkModal();
     case "markets": return marketsModal(NODES[m.nodeId]);
     case "template": return applyTemplateModal(NODES[m.nodeId]);
     case "templates": return templatesModal(NODES[m.nodeId]);
@@ -2214,6 +2261,7 @@ root.addEventListener("click", function(e){
 
   // open modals
   var pv=t.closest("[data-providers]"); if(pv){ var pvn=NODES[pv.getAttribute("data-providers")]; state.modal={type:"providers",nodeId:pvn.id, draft:(pvn.providers[state.partner]||[]).slice()}; render(); return; }
+  if(t.closest("[data-fd-bulk-open]")){ state.modal={type:"fd-bulk", scope:"sport", draft:[], override:true}; render(); return; }
   var mkb=t.closest("[data-markets]"); if(mkb){ state.modal={type:"markets",nodeId:mkb.getAttribute("data-markets")}; render(); return; }
   var tmb=t.closest("[data-template]"); if(tmb){ state.modalTab=0; state.modal={type:"template",nodeId:tmb.getAttribute("data-template")}; render(); return; }
   var tmpls=t.closest("[data-templates]"); if(tmpls){ state.modal={type:"templates",nodeId:tmpls.getAttribute("data-templates")}; render(); return; }
@@ -2345,6 +2393,9 @@ modalRoot.addEventListener("click", function(e){
   var px=t.closest("[data-prov-del]"); if(px){ provDel(parseInt(px.getAttribute("data-prov-del"),10)); return; }
   if(t.id==="prov-add-btn"){ provAdd(); return; }
   if(t.id==="prov-save"){ provSave(); return; }
+  var fdbs=t.closest("[data-fdb-scope]"); if(fdbs){ state.modal.scope=fdbs.getAttribute("data-fdb-scope"); render(); return; }
+  if(t.closest("[data-fdb-override]")){ state.modal.override=!(state.modal.override!==false); render(); return; }
+  if(t.closest("[data-fd-bulk-apply]")){ fdBulkApply(); return; }
 
   // market rules
   var mr=t.closest("[data-mr]"); if(mr){
@@ -2384,7 +2435,7 @@ modalRoot.addEventListener("dragstart", function(e){ var r=e.target.closest("[da
 modalRoot.addEventListener("dragover", function(e){ if(dragMp){ var r=e.target.closest("[data-mp-key]"); if(r){ e.preventDefault(); e.dataTransfer.dropEffect="move"; var rc=r.getBoundingClientRect(); setDropLine(r, e.clientY>rc.top+rc.height/2); } } });
 modalRoot.addEventListener("drop", function(e){ clearDropLine(); if(!dragMp)return; var r=e.target.closest("[data-mp-key]"); if(r){ e.preventDefault(); var tk=r.getAttribute("data-mp-key"); if(tk!==dragMp){ var rc=r.getBoundingClientRect(); dropMarketPrio(NODES[state.modal.nodeId], dragMp, tk, e.clientY>rc.top+rc.height/2); } } dragMp=null; render(); });
 modalRoot.addEventListener("dragend", function(){ clearDropLine(); if(dragMp){ dragMp=null; render(); } });
-function provDraftMode(){ return state.modal && state.modal.type==="providers" && state.modal.draft; }
+function provDraftMode(){ return state.modal && (state.modal.type==="providers"||state.modal.type==="fd-bulk") && state.modal.draft; }
 function provGet(n){ return (provDraftMode()? state.modal.draft : (n.providers[state.partner]||[])).slice(); }
 function provSet(n,arr){ if(provDraftMode()) state.modal.draft=arr; else n.providers[state.partner]=arr; }
 function provMove(i,d){ var n=NODES[state.modal.nodeId]; var arr=provGet(n); var j=i+d; if(j<0||j>=arr.length)return; var tmp=arr[i];arr[i]=arr[j];arr[j]=tmp; provSet(n,arr); render(); }
