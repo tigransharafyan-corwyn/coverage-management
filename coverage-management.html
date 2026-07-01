@@ -1094,8 +1094,7 @@ function coverageMainHtml(){
         + (state.country!=="default" ? '<div class="info-banner" style="background:var(--warn-soft); border-color:#f0d9a8; color:#8a5a12">🌐 Editing <b>priority order</b> for <b>'+esc(state.country)+'</b> — overrides the Default priority. Enable/disable &amp; market rules remain global.</div>' : '')
         + '<div class="mcols">'+colsHtml+'</div>'
       + '</div>'
-    + '</div>'
-    + (focus && focus.type!=="market" ? detailsHtml(focus) : '');
+    + '</div>';
 }
 
 function spinnerHtml(node, no, total, disabled){
