@@ -166,6 +166,7 @@
   .sw.on .track:after { left:17px; }
   /* child enabled while parent is disabled → orange to flag the override */
   .sw.on.inherited-off[data-ch] .track { background:var(--orange); }
+  .excl-tag { display:inline-block; margin-left:7px; font-size:9px; font-weight:800; letter-spacing:.4px; color:var(--orange); background:var(--warn-soft); border:1px solid #f0d6b0; border-radius:5px; padding:1px 5px; vertical-align:middle; }
   .sw.on.inherited-off[data-ch] .track:after { box-shadow:0 1px 2px rgba(0,0,0,.25); }
   .sw.disabled { opacity:.5; cursor:not-allowed;}
   .ch-cell { display:flex; flex-direction:column; align-items:center; gap:3px;}
@@ -1922,16 +1923,18 @@ function settingsModal(node){
     var mpq=(state.modal.mpq||"").toLowerCase();
     var shownK = keys.map(function(k,i){ return {k:k, no:i+1}; }).filter(function(o){ return !mpq || marketLabelFor(sport,o.k).toLowerCase().indexOf(mpq)!==-1; });
     var rows= shownK.length? shownK.map(function(o){ var k=o.k, no=o.no;
-      var lv=effMarket(node,k,'live').state==='on', pr=effMarket(node,k,'prematch').state==='on';
+      var lE=effMarket(node,k,'live'), pE=effMarket(node,k,'prematch');
+      var lv=lE.state==='on', pr=pE.state==='on';
+      var lExc=lv&&lE.excluded, pExc=pr&&pE.excluded;
       return '<div class="mp-row" draggable="true" data-mp-key="'+k+'">'
         + '<span class="drag" title="Drag to reorder">⠿</span>'
         + '<div class="spin"><input class="spin-in mp-prio" type="text" inputmode="numeric" value="'+no+'" data-mp-prio-key="'+k+'">'
           + '<div class="spin-btns"><button data-mp-dir="up" data-mp-key="'+k+'" '+(no<=1?'disabled':'')+'>▲</button>'
           + '<button data-mp-dir="down" data-mp-key="'+k+'" '+(no>=total?'disabled':'')+'>▼</button></div></div>'
-        + '<span class="mp-name">'+esc(marketLabelFor(sport,k))+'</span>'
+        + '<span class="mp-name">'+esc(marketLabelFor(sport,k))+(lExc||pExc?' <span class="excl-tag" title="Re-enabled below a level that disabled it">EXCLUSION</span>':'')+'</span>'
         + '<span class="mc-ch">'
-          + '<span class="ch-lbl live">L</span><span class="sw mini '+(lv?'on':'')+'" data-ch="live" data-mp-toggle data-mp-tkey="'+k+'" data-mp-tch="live"><span class="track"></span></span>'
-          + '<span class="ch-lbl pre">P</span><span class="sw mini '+(pr?'on':'')+'" data-ch="prematch" data-mp-toggle data-mp-tkey="'+k+'" data-mp-tch="prematch"><span class="track"></span></span>'
+          + '<span class="ch-lbl live">L</span><span class="sw mini '+(lv?'on':'')+(lExc?' inherited-off':'')+'" data-ch="live" data-mp-toggle data-mp-tkey="'+k+'" data-mp-tch="live" title="'+(lExc?'Exclusion — market is off at a higher level but re-enabled here':(lv?'Disable':'Enable')+' live')+'"><span class="track"></span></span>'
+          + '<span class="ch-lbl pre">P</span><span class="sw mini '+(pr?'on':'')+(pExc?' inherited-off':'')+'" data-ch="prematch" data-mp-toggle data-mp-tkey="'+k+'" data-mp-tch="prematch" title="'+(pExc?'Exclusion — market is off at a higher level but re-enabled here':(pr?'Disable':'Enable')+' prematch')+'"><span class="track"></span></span>'
         + '</span>'
       + '</div>';
     }).join("") : '<div class="sub-muted" style="padding:14px; text-align:center">No markets match “'+esc(state.modal.mpq||"")+'”.</div>';
