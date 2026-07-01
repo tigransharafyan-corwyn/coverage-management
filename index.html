@@ -1010,7 +1010,7 @@ function navTabsHtml(){
       + (badge!=null?'<span class="navtab-badge">'+badge+'</span>':'')+'</button>';
   }
   return '<div class="tabbar">'
-    + tab("coverage","<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.6' stroke-linejoin='round'><circle cx='12' cy='12' r='9.3'/><polygon points='12,8.2 15.1,10.4 13.9,14 10.1,14 8.9,10.4' fill='currentColor' stroke='none'/><path d='M12 2.7V8.2M4.1 8.7 8.9 10.4M19.9 8.7 15.1 10.4M7 19.1 10.1 14M17 19.1 13.9 14'/></svg>","Coverage", null)
+    + tab("coverage","<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'><circle cx='12' cy='12' r='9.2'/><path d='M12 7l4.755 3.455l-1.82 5.59h-5.87l-1.82 -5.59z' fill='currentColor' stroke-width='1'/><path d='M12 7V2.9M16.76 10.46 20.2 9.3M14.94 16.05 17 19.8M9.07 16.05 7 19.8M7.25 10.46 3.8 9.3'/></svg>","Coverage", null)
     + tab("picked-tournaments","🏆","Picked Tournaments", PICKED_TOURNAMENTS.length)
     + tab("age-groups","<span class=\"nt-18\">18+</span>","Age Groups", null)
     + tab("market-templates","<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.7' stroke-linejoin='round'><rect x='3.3' y='4.3' width='17.4' height='15.4' rx='2.2'/><line x1='3.3' y1='9' x2='20.7' y2='9'/><line x1='9' y1='9' x2='9' y2='19.7'/></svg>","Market Templates", null)
@@ -1278,7 +1278,7 @@ function pickSpinner(list, id, no, total){
 
 /* ---------- picked tournaments view ---------- */
 function pickedTournamentsMainHtml(){
-  var ids = PICKED_TOURNAMENTS.slice();       // array order = priority
+  var ids = pickArr("trn").slice();           // array order = priority (country-scoped)
   var total = ids.length;
   var cards = total===0
     ? '<div class="empty-state">No top tournaments yet. Use “Add tournaments” to build the list.</div>'
@@ -1300,10 +1300,12 @@ function pickedTournamentsMainHtml(){
   return '<div class="panel">'
     + '<div class="panel-head"><h2>Picked Tournaments</h2><span class="hint">drag or set a priority — pinned to the top of the iframe left tree in this order</span>'
       + '<span class="spacer"></span>'
-      + '<button class="btn primary" id="add-picked-trn">+ Add Tournaments</button>'
+      + '<div class="toolbar">'+countryFilterHtml()+'<button class="btn primary" id="add-picked-trn">+ Add Tournaments</button></div>'
     + '</div>'
     + '<div class="panel-body">'
-      + '<div class="info-banner blue">ℹ️ Top tournaments appear pinned at the top of the player iframe’s left tree, in this priority order, so players open their events directly.</div>'
+      + (state.country!=="default"
+          ? '<div class="info-banner" style="background:var(--warn-soft); border-color:#f0d9a8; color:#8a5a12">🌐 Editing the <b>pinned priority order</b> for <b>'+esc(state.country)+'</b> — overrides the Default order. The set of picks is shared across countries.</div>'
+          : '<div class="info-banner blue">ℹ️ Top tournaments appear pinned at the top of the player iframe’s left tree, in this priority order, so players open their events directly.</div>')
       + cards
     + '</div>'
   + '</div>';
@@ -2240,8 +2242,23 @@ function dropReorder(dragNode, targetNode, after){
 }
 
 /* ---- pick-list reordering (PICKED_TOURNAMENTS / PICKED_EVENTS) ---- */
-function pickArr(list){ return list==="trn"?PICKED_TOURNAMENTS:PICKED_EVENTS; }
-function setPickArr(list, arr){ if(list==="trn")PICKED_TOURNAMENTS=arr; else PICKED_EVENTS=arr; }
+/* per-country priority order overrides (like Coverage): country -> [ids] */
+var PICKED_TRN_ORDER_C = {}, PICKED_EVT_ORDER_C = {};
+function pickBase(list){ return list==="trn"?PICKED_TOURNAMENTS:PICKED_EVENTS; }
+function pickOrderMap(list){ return list==="trn"?PICKED_TRN_ORDER_C:PICKED_EVT_ORDER_C; }
+function pickArr(list){
+  var base=pickBase(list);
+  if(state.country==="default") return base;
+  var stored=pickOrderMap(list)[state.country]||[];
+  var inBase={}; base.forEach(function(id){ inBase[id]=true; });
+  var out=stored.filter(function(id){ return inBase[id]; });     // keep this country's order for still-present ids
+  base.forEach(function(id){ if(out.indexOf(id)===-1) out.push(id); }); // append any new picks at the end
+  return out;
+}
+function setPickArr(list, arr){
+  if(state.country==="default"){ if(list==="trn")PICKED_TOURNAMENTS=arr; else PICKED_EVENTS=arr; }
+  else { pickOrderMap(list)[state.country]=arr.slice(); }
+}
 function movePick(list, id, dir){ var a=pickArr(list).slice(); var i=a.indexOf(id), j=dir==="up"?i-1:i+1; if(i<0||j<0||j>=a.length)return; a.splice(i,1); a.splice(j,0,id); setPickArr(list,a); }
 function setPickPos(list, id, pos){ var a=pickArr(list).slice(); var i=a.indexOf(id); if(i<0)return; pos=Math.max(1,Math.min(a.length,pos))-1; a.splice(i,1); a.splice(pos,0,id); setPickArr(list,a); }
 function dropPick(list, dragId, targetId, after){ if(dragId===targetId)return; var a=pickArr(list).slice(); a.splice(a.indexOf(dragId),1); var ti=a.indexOf(targetId)+(after?1:0); a.splice(ti,0,dragId); setPickArr(list,a); }
