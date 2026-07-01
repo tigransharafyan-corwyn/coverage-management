@@ -1550,7 +1550,6 @@ function feedDistributionMainHtml(){
   return '<div class="panel">'
     + '<div class="panel-head"><h2>Feed Distribution</h2><span class="hint">feed-provider priority for <b>'+esc(partnerName(state.partner))+'</b> · set at any level; deeper levels override</span><span class="spacer"></span><button class="btn sm primary" data-fd-bulk-open>Bulk assign…</button></div>'
     + '<div class="panel-body" style="padding:12px">'
-      + '<div class="info-banner blue">ℹ️ Click a provider chip on any row to manage &amp; prioritize feed providers for that Sport / Tournament / Event / Market. Priority is per client (partner) and inherited downward unless overridden.</div>'
       + '<div class="mcols">'+cols.map(fdColHtml).join("")+'</div>'
     + '</div>'
   + '</div>';
@@ -1579,24 +1578,35 @@ function fdBulkModal(){
   var addSel = '<select class="input" id="prov-add-sel" style="min-width:200px"><option value="">Add provider…</option>'
     + avail.map(function(pr){ return '<option value="'+esc(pr)+'">'+esc(pr)+'</option>'; }).join("") + '</select>';
   var override = m.override!==false;
-  var body = '<div class="stpl-choose-label">Apply to</div>'
-    + '<div class="ms-plain-list" style="border:1px solid var(--border); border-radius:9px; overflow:hidden; margin-bottom:14px">'+scopeList+'</div>'
-    + '<div class="stpl-choose-label">Provider priority</div>'
+  var mode = m.mode||"assign";
+  var MODES=[{k:"assign",label:"Assign providers"},{k:"inherit",label:"Inherit from parent (clear override)"}];
+  var modeList = MODES.map(function(x){ return '<div class="ms-opt ms-plain'+(mode===x.k?' sel':'')+'" data-fdb-mode="'+x.k+'">'+esc(x.label)+'</div>'; }).join("");
+  var assignBlock = '<div class="stpl-choose-label">Provider priority</div>'
     + rows
     + '<div style="display:flex; gap:8px; margin-top:10px">'+addSel+'<button class="btn" id="prov-add-btn">Add</button></div>'
     + '<label class="fdb-ovr"><span class="sw mini '+(override?'on':'')+'" data-ch="live" data-fdb-override><span class="track"></span></span> Override levels that already have their own providers</label>';
+  var inheritBlock = '<div class="info-banner blue">Removes provider settings at the selected level so those nodes inherit from their parent. Any existing overrides on that level are cleared.</div>';
+  var body = '<div class="stpl-choose-label">Action</div>'
+    + '<div class="ms-plain-list" style="border:1px solid var(--border); border-radius:9px; overflow:hidden; margin-bottom:14px">'+modeList+'</div>'
+    + '<div class="stpl-choose-label">Apply to</div>'
+    + '<div class="ms-plain-list" style="border:1px solid var(--border); border-radius:9px; overflow:hidden; margin-bottom:14px">'+scopeList+'</div>'
+    + (mode==="inherit"? inheritBlock : assignBlock);
   var scopeLabel=(SCOPES.filter(function(s){return s.k===scope;})[0]||{}).label;
-  return shell('Bulk Assign Feed Providers',
-    'for <b>'+esc(partnerName(state.partner))+'</b> · applies to <b>'+esc(scopeLabel)+'</b>',
+  return shell('Bulk Feed Providers',
+    'for <b>'+esc(partnerName(state.partner))+'</b> · '+(mode==="inherit"?'clear ':'assign to ')+'<b>'+esc(scopeLabel)+'</b>',
     body,
     '<span class="sub-muted spacer">Priority is per client · deeper levels can still override</span><button class="btn" id="modal-close">Cancel</button><button class="btn primary" data-fd-bulk-apply>Apply</button>');
 }
 function fdBulkApply(){
-  var m=state.modal, scope=m.scope||"sport", arr=(m.draft||[]).slice(), override=m.override!==false, partner=state.partner, count=0;
+  var m=state.modal, scope=m.scope||"sport", partner=state.partner, mode=m.mode||"assign";
+  if(mode==="inherit"){
+    Object.keys(NODES).forEach(function(id){ var n=NODES[id]; if(n.type!==scope) return; if(n.providers[partner]) delete n.providers[partner]; });
+    state.modal=null; render(); return;
+  }
+  var arr=(m.draft||[]).slice(), override=m.override!==false;
   Object.keys(NODES).forEach(function(id){ var n=NODES[id]; if(n.type!==scope) return;
     if(!override && n.providers[partner] && n.providers[partner].length) return;
     if(arr.length) n.providers[partner]=arr.slice(); else delete n.providers[partner];
-    count++;
   });
   state.modal=null; render();
 }
@@ -1768,7 +1778,9 @@ function providerEditorBody(node){
     + avail.map(function(pr){ return '<option value="'+esc(pr)+'">'+esc(pr)+'</option>'; }).join("") + '</select>';
   return (inh? '<div class="sub-muted" style="margin-bottom:10px">Inherited from <b>'+esc(inh.node.name)+'</b>: '+inh.list.map(function(x,i){return (i+1)+'. '+esc(x);}).join(" · ")+'</div>':'')
     + rows
-    + '<div style="display:flex; gap:8px; margin-top:10px">'+addSel+'<button class="btn" id="prov-add-btn">Add</button></div>';
+    + '<div style="display:flex; gap:8px; margin-top:10px; align-items:center">'+addSel+'<button class="btn" id="prov-add-btn">Add</button>'
+    + (inh && list.length? '<span class="spacer"></span><button class="btn sm" data-prov-inherit title="Clear this override and inherit from '+esc(inh.node.name)+'">↑ Inherit from '+esc(inh.node.name)+'</button>':'')
+    + '</div>';
 }
 function providerModal(node){
   var body = providerEditorBody(node);
@@ -2393,6 +2405,8 @@ modalRoot.addEventListener("click", function(e){
   var px=t.closest("[data-prov-del]"); if(px){ provDel(parseInt(px.getAttribute("data-prov-del"),10)); return; }
   if(t.id==="prov-add-btn"){ provAdd(); return; }
   if(t.id==="prov-save"){ provSave(); return; }
+  if(t.closest("[data-prov-inherit]")){ var pin=NODES[state.modal.nodeId]; provSet(pin,[]); render(); return; }
+  var fdbm=t.closest("[data-fdb-mode]"); if(fdbm){ state.modal.mode=fdbm.getAttribute("data-fdb-mode"); render(); return; }
   var fdbs=t.closest("[data-fdb-scope]"); if(fdbs){ state.modal.scope=fdbs.getAttribute("data-fdb-scope"); render(); return; }
   if(t.closest("[data-fdb-override]")){ state.modal.override=!(state.modal.override!==false); render(); return; }
   if(t.closest("[data-fd-bulk-apply]")){ fdBulkApply(); return; }
