@@ -1510,7 +1510,7 @@ function fdColHtml(col){
     var hasKids=n.type!=="market"&&n.childIds.length>0;
     return '<div class="mcol-row'+(sel===n.id?' sel':'')+'" data-fd-row="'+n.id+'" data-pkey="'+col.pkey+'">'
       + '<span class="mc-main">'+(iconFor(n)?'<span class="mc-ic">'+iconFor(n)+'</span>':'')+'<span class="mc-name">'+esc(n.name)+'</span>'+(hasKids?'<span class="mc-cnt">'+n.childIds.length+'</span>':'')+'</span>'
-      + '<span class="mc-ch">'+fdProviderBadge(n)+'</span>'
+      + '<span class="mc-ch">'+(n.type==="category"?'':fdProviderBadge(n))+'</span>'
       + (hasKids?'<span class="mc-chev">'+CHEVRON+'</span>':'<span style="width:14px"></span>')
     + '</div>';
   }).join("") : '<div class="sub-muted" style="padding:14px; text-align:center">No items'+(q?' match':'')+'.</div>';
@@ -1524,7 +1524,7 @@ function feedDistributionMainHtml(){
   return '<div class="panel">'
     + '<div class="panel-head"><h2>Feed Distribution</h2><span class="hint">feed-provider priority for <b>'+esc(partnerName(state.partner))+'</b> · set at any level; deeper levels override</span></div>'
     + '<div class="panel-body" style="padding:12px">'
-      + '<div class="info-banner blue">ℹ️ Click a provider chip on any row to manage &amp; prioritize feed providers for that Sport / Category / Tournament / Event / Market. Priority is per client (partner) and inherited downward unless overridden.</div>'
+      + '<div class="info-banner blue">ℹ️ Click a provider chip on any row to manage &amp; prioritize feed providers for that Sport / Tournament / Event / Market. Priority is per client (partner) and inherited downward unless overridden.</div>'
       + '<div class="mcols">'+cols.map(fdColHtml).join("")+'</div>'
     + '</div>'
   + '</div>';
