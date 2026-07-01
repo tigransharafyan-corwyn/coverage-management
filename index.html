@@ -1114,6 +1114,42 @@ function ageFilterHtml(){
   + '</div>';
 }
 
+/* ---- enable / disable coverage in bulk by tournament age group ---- */
+function ageCovGroups(){
+  var byAge={};
+  Object.keys(NODES).forEach(function(k){ var n=NODES[k]; if(n.type==="tournament"){ var ag=n.ageGroup||""; (byAge[ag]=byAge[ag]||[]).push(n); } });
+  var out=[];
+  AGE_GROUPS.forEach(function(a){ if(byAge[a]&&byAge[a].length) out.push({key:a, ag:a, label:a, list:byAge[a]}); });
+  if(byAge[""]&&byAge[""].length) out.push({key:"__none__", ag:"", label:"Unassigned", list:byAge[""]});
+  return out;
+}
+function ageCovBulkModal(){
+  var m=state.modal, groups=ageCovGroups();
+  if(!m.draft){ m.draft={}; m.touched={};
+    groups.forEach(function(g){ m.draft[g.key]={ live:g.list.every(function(n){return n.live.enabled;}), prematch:g.list.every(function(n){return n.prematch.enabled;}) }; });
+  }
+  var rows=groups.map(function(g){ var d=m.draft[g.key]||{live:false,prematch:false};
+    return '<div class="mp-row" style="cursor:default">'
+      + '<span class="mp-name" style="flex:1">'+esc(g.label)+' <span class="sub-muted">· '+g.list.length+' trn</span></span>'
+      + '<span class="mc-ch">'
+        + '<span class="ch-lbl live">L</span><span class="sw mini '+(d.live?"on":"")+'" data-ch="live" data-agc-tog="'+esc(g.key)+'" data-agc-ch="live"><span class="track"></span></span>'
+        + '<span class="ch-lbl pre">P</span><span class="sw mini '+(d.prematch?"on":"")+'" data-ch="prematch" data-agc-tog="'+esc(g.key)+'" data-agc-ch="prematch"><span class="track"></span></span>'
+      + '</span>'
+    + '</div>';
+  }).join("");
+  var touchedCount=Object.keys(m.touched||{}).length;
+  var body='<div class="info-banner blue">ℹ️ Toggle <b>Live</b> / <b>Prematch</b> per age group, then <b>Apply</b>. Changes cascade to every tournament (and its events) carrying that age group.</div>'
+    + '<div class="mp-list">'+rows+'</div>';
+  return shell('Enable / Disable by Age Group', 'bulk toggle coverage by tournament age group', body,
+    '<span class="sub-muted spacer">'+touchedCount+' change'+(touchedCount===1?"":"s")+' staged</span><button class="btn" id="modal-close">Cancel</button><button class="btn primary" data-agc-apply '+(touchedCount?"":"disabled")+'>Apply</button>');
+}
+function ageCovApply(){
+  var m=state.modal, d=m.draft||{}, touched=m.touched||{}, groups=ageCovGroups(), byKey={};
+  groups.forEach(function(g){ byKey[g.key]=g; });
+  Object.keys(touched).forEach(function(tk){ var parts=tk.split("|"), key=parts[0], ch=parts[1]; var g=byKey[key]; if(!g)return; var val=d[key][ch]; g.list.forEach(function(n){ setChannelCascade(n, ch, val); }); });
+  state.modal=null; render();
+}
+
 function countryFilterHtml(){
   var cur=state.country, label=cur==="default"?"Default":cur;
   var menu="";
@@ -1138,6 +1174,7 @@ function coverageMainHtml(){
         + '<div class="toolbar">'
           + countryFilterHtml()
           + ageFilterHtml()
+          + '<button class="btn" id="open-age-cov" style="font-weight:400">Age-group on/off…</button>'
           + '<button class="btn" id="open-disabled-summary" style="font-weight:400">Disabled Content</button>'
         + '</div>'
       + '</div>'
@@ -1849,6 +1886,7 @@ function modalHtml(){
     case "providers": return providerModal(NODES[m.nodeId]);
     case "fd-bulk": return fdBulkModal();
     case "agp-bulk": return ageBulkModal();
+    case "age-cov": return ageCovBulkModal();
     case "markets": return marketsModal(NODES[m.nodeId]);
     case "template": return applyTemplateModal(NODES[m.nodeId]);
     case "templates": return templatesModal(NODES[m.nodeId]);
@@ -2413,6 +2451,7 @@ root.addEventListener("click", function(e){
   var tmb=t.closest("[data-template]"); if(tmb){ state.modalTab=0; state.modal={type:"template",nodeId:tmb.getAttribute("data-template")}; render(); return; }
   var tmpls=t.closest("[data-templates]"); if(tmpls){ state.modal={type:"templates",nodeId:tmpls.getAttribute("data-templates")}; render(); return; }
   var ageb=t.closest("[data-age]"); if(ageb){ state.modal={type:"age",nodeId:ageb.getAttribute("data-age")}; render(); return; }
+  if(t.closest("#open-age-cov")){ state.modal={type:"age-cov"}; render(); return; }
   if(t.closest("#open-disabled-summary")){ state.summaryFilters={q:"",kind:"all",sport:"",type:"",channel:"both"}; state.modal={type:"disabled-summary"}; render(); return; }
 
   // per-entity settings (gear)
@@ -2547,6 +2586,8 @@ modalRoot.addEventListener("click", function(e){
   var agpba=t.closest("[data-agpb-age]"); if(agpba){ state.modal.age=agpba.getAttribute("data-agpb-age"); render(); return; }
   if(t.closest("[data-agpb-override]")){ state.modal.override=!(state.modal.override!==false); render(); return; }
   if(t.closest("[data-agp-bulk-apply]")){ ageBulkApply(); return; }
+  var agct=t.closest("[data-agc-tog]"); if(agct){ var ak=agct.getAttribute("data-agc-tog"), ach=agct.getAttribute("data-agc-ch"); if(!state.modal.draft[ak])state.modal.draft[ak]={live:false,prematch:false}; state.modal.draft[ak][ach]=!state.modal.draft[ak][ach]; state.modal.touched[ak+"|"+ach]=true; render(); return; }
+  if(t.closest("[data-agc-apply]")){ ageCovApply(); return; }
   if(t.closest("[data-fdb-override]")){ state.modal.override=!(state.modal.override!==false); render(); return; }
   if(t.closest("[data-fd-bulk-apply]")){ fdBulkApply(); return; }
 
