@@ -1356,13 +1356,53 @@ function ageGroupsMainHtml(){
   return '<div class="panel">'
     + '<div class="panel-head"><h2>Age Groups</h2><span class="hint">pick a sport → category, then assign an age group to each tournament</span>'
       + '<span class="spacer"></span>'
-      + '<div class="toolbar">'+agpFilterHtml()+'<input id="agp-search" class="search-box" placeholder="Search…" value="'+esc(state.agpSearch)+'"></div>'
+      + '<div class="toolbar">'+agpFilterHtml()+'<input id="agp-search" class="search-box" placeholder="Search…" value="'+esc(state.agpSearch)+'"><button class="btn sm primary" data-agp-bulk-open>Bulk assign…</button></div>'
     + '</div>'
     + '<div class="panel-body" style="padding:12px">'
       + '<div class="info-banner blue">ℹ️ Age groups classify tournaments (e.g. youth or reserve competitions) and drive the age-group filter in Coverage. <b>'+totalTrn+'</b> tournaments · <b>'+unassigned+'</b> unassigned.</div>'
       + '<div class="mcols">'+col1+col2+col3+'</div>'
     + '</div>'
   + '</div>';
+}
+
+/* ---------- bulk age-group assignment across tournaments ---------- */
+function agpBulkTargets(scope){
+  var out=[];
+  if(scope==="all"){ Object.keys(NODES).forEach(function(id){ if(NODES[id].type==="tournament") out.push(NODES[id]); }); }
+  else {
+    var root = scope==="sport"? NODES[state.agpSportSel] : NODES[state.agpCatSel];
+    if(root){ (function walk(n){ n.childIds.forEach(function(id){ var c=NODES[id]; if(c.type==="tournament") out.push(c); walk(c); }); })(root); }
+  }
+  return out;
+}
+function ageBulkModal(){
+  var m=state.modal, scope=m.scope||"category", age=(m.age!==undefined?m.age:"Senior");
+  var sportNode=NODES[state.agpSportSel], catNode=state.agpCatSel?NODES[state.agpCatSel]:null;
+  var SCOPES=[
+    {k:"category", label:"This category", sub: catNode?esc(catNode.name):"—"},
+    {k:"sport", label:"This sport", sub: sportNode?esc(sportNode.name):"—"},
+    {k:"all", label:"All tournaments", sub:"whole tree"}
+  ];
+  function cnt(k){ return agpBulkTargets(k).length; }
+  var scopeList=SCOPES.map(function(s){ return '<div class="ms-opt ms-plain'+(scope===s.k?' sel':'')+'" data-agpb-scope="'+s.k+'">'+esc(s.label)+' <span class="sub-muted" style="margin-left:6px">· '+s.sub+' · '+cnt(s.k)+' trn</span></div>'; }).join("");
+  var ageList=AGE_GROUPS.map(function(a){ return '<div class="ms-opt ms-plain'+(age===a?' sel':'')+'" data-agpb-age="'+a+'">'+esc(a)+'</div>'; }).join("")
+    + '<div class="ms-opt ms-plain'+(age===""?' sel':'')+'" data-agpb-age=""><span class="sub-muted">Unassigned (clear)</span></div>';
+  var override=m.override!==false;
+  var body='<div class="stpl-choose-label">Apply to</div>'
+    + '<div class="ms-plain-list" style="border:1px solid var(--border); border-radius:9px; overflow:hidden; margin-bottom:14px">'+scopeList+'</div>'
+    + '<div class="stpl-choose-label">Age group</div>'
+    + '<div class="ms-plain-list" style="border:1px solid var(--border); border-radius:9px; overflow:hidden; max-height:220px; overflow-y:auto; margin-bottom:6px">'+ageList+'</div>'
+    + '<label class="fdb-ovr"><span class="sw mini '+(override?'on':'')+'" data-ch="live" data-agpb-override><span class="track"></span></span> Override tournaments that already have an age group</label>';
+  var scopeLabel=(SCOPES.filter(function(s){return s.k===scope;})[0]||{}).label;
+  return shell('Bulk Assign Age Group',
+    'set <b>'+esc(age||"Unassigned")+'</b> on <b>'+esc(scopeLabel)+'</b>',
+    body,
+    '<span class="sub-muted spacer">'+cnt(scope)+' tournament'+(cnt(scope)===1?'':'s')+' in scope</span><button class="btn" id="modal-close">Cancel</button><button class="btn primary" data-agp-bulk-apply>Apply</button>');
+}
+function ageBulkApply(){
+  var m=state.modal, targets=agpBulkTargets(m.scope||"category"), override=m.override!==false, val=(m.age!==undefined?m.age:"Senior");
+  targets.forEach(function(n){ if(!override && n.ageGroup) return; n.ageGroup = val||null; });
+  state.modal=null; render();
 }
 
 /* ---------- market templates view: table with columns ---------- */
@@ -1735,6 +1775,7 @@ function modalHtml(){
   switch(m.type){
     case "providers": return providerModal(NODES[m.nodeId]);
     case "fd-bulk": return fdBulkModal();
+    case "agp-bulk": return ageBulkModal();
     case "markets": return marketsModal(NODES[m.nodeId]);
     case "template": return applyTemplateModal(NODES[m.nodeId]);
     case "templates": return templatesModal(NODES[m.nodeId]);
@@ -2235,6 +2276,7 @@ root.addEventListener("click", function(e){
   var agcs=t.closest("[data-agp-cat-sel]"); if(agcs){ state.agpCatSel=agcs.getAttribute("data-agp-cat-sel"); state.agpRowOpen=null; render(); return; }
   var arw=t.closest("[data-agp-row]"); if(arw){ var rid=arw.getAttribute("data-agp-row"); state.agpRowOpen=(state.agpRowOpen===rid)?null:rid; state.agpFilterOpen=false; render(); return; }
   var ast=t.closest("[data-agp-set]"); if(ast){ var an=NODES[ast.getAttribute("data-agp-node")]; var aval=ast.getAttribute("data-agp-set"); an.ageGroup=aval||null; state.agpRowOpen=null; render(); return; }
+  if(t.closest("[data-agp-bulk-open]")){ state.modal={type:"agp-bulk", scope:(state.agpCatSel?"category":"sport"), age:"Senior", override:true}; render(); return; }
 
   // market-templates page (3 columns)
   var mtsp=t.closest("[data-mt-sport-sel]"); if(mtsp){ state.mtSport=mtsp.getAttribute("data-mt-sport-sel"); state.mtTplSel=null; render(); return; }
@@ -2413,6 +2455,10 @@ modalRoot.addEventListener("click", function(e){
   if(t.closest("[data-prov-inherit]")){ var pin=NODES[state.modal.nodeId]; provSet(pin,[]); render(); return; }
   var fdbm=t.closest("[data-fdb-mode]"); if(fdbm){ state.modal.mode=fdbm.getAttribute("data-fdb-mode"); render(); return; }
   var fdbs=t.closest("[data-fdb-scope]"); if(fdbs){ state.modal.scope=fdbs.getAttribute("data-fdb-scope"); render(); return; }
+  var agpbs=t.closest("[data-agpb-scope]"); if(agpbs){ state.modal.scope=agpbs.getAttribute("data-agpb-scope"); render(); return; }
+  var agpba=t.closest("[data-agpb-age]"); if(agpba){ state.modal.age=agpba.getAttribute("data-agpb-age"); render(); return; }
+  if(t.closest("[data-agpb-override]")){ state.modal.override=!(state.modal.override!==false); render(); return; }
+  if(t.closest("[data-agp-bulk-apply]")){ ageBulkApply(); return; }
   if(t.closest("[data-fdb-override]")){ state.modal.override=!(state.modal.override!==false); render(); return; }
   if(t.closest("[data-fd-bulk-apply]")){ fdBulkApply(); return; }
 
