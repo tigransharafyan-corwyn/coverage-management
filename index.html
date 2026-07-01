@@ -970,11 +970,13 @@ function topbarHtml(){
     + '<div><h1>Coverage Management</h1></div>'
     + '<div class="topbar-right">'
       + '<div class="ctx-field"><label>Partner</label><select class="input" id="partner-sel">'+partnerOpts+'</select></div>'
-      + '<div class="ctx-field"><label>Channel view</label><div class="seg">'
-        + '<button data-mode="both" class="'+(state.mode==="both"?"on":"")+'">Both</button>'
-        + '<button data-mode="live" class="'+(state.mode==="live"?"on":"")+'">Live</button>'
-        + '<button data-mode="prematch" class="'+(state.mode==="prematch"?"on":"")+'">Prematch</button>'
-      + '</div></div>'
+      + (state.view==="coverage"
+          ? '<div class="ctx-field"><label>Channel view</label><div class="seg">'
+            + '<button data-mode="both" class="'+(state.mode==="both"?"on":"")+'">Both</button>'
+            + '<button data-mode="live" class="'+(state.mode==="live"?"on":"")+'">Live</button>'
+            + '<button data-mode="prematch" class="'+(state.mode==="prematch"?"on":"")+'">Prematch</button>'
+          + '</div></div>'
+          : '')
     + '</div>'
   + '</div>';
 }
