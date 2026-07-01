@@ -1384,7 +1384,6 @@ function ageGroupsMainHtml(){
       + '<div class="toolbar">'+agpFilterHtml()+'<input id="agp-search" class="search-box" placeholder="Search…" value="'+esc(state.agpSearch)+'"><button class="btn sm primary" data-agp-bulk-open>Bulk assign…</button></div>'
     + '</div>'
     + '<div class="panel-body" style="padding:12px">'
-      + '<div class="info-banner blue">ℹ️ Age groups classify tournaments (e.g. youth or reserve competitions) and drive the age-group filter in Coverage. <b>'+totalTrn+'</b> tournaments · <b>'+unassigned+'</b> unassigned.</div>'
       + '<div class="mcols">'+col1+col2+col3+'</div>'
     + '</div>'
   + '</div>';
@@ -1404,8 +1403,8 @@ function ageBulkModal(){
   var m=state.modal, scope=m.scope||"category", age=(m.age!==undefined?m.age:"Senior");
   var sportNode=NODES[state.agpSportSel], catNode=state.agpCatSel?NODES[state.agpCatSel]:null;
   var SCOPES=[
-    {k:"category", label:"This category", sub: catNode?esc(catNode.name):"—"},
-    {k:"sport", label:"This sport", sub: sportNode?esc(sportNode.name):"—"},
+    {k:"category", label:"Selected Category", sub: catNode?esc(catNode.name):"—"},
+    {k:"sport", label:"Selected Sport", sub: sportNode?esc(sportNode.name):"—"},
     {k:"all", label:"All tournaments", sub:"whole tree"}
   ];
   function cnt(k){ return agpBulkTargets(k).length; }
