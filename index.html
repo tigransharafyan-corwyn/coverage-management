@@ -708,13 +708,7 @@ var EXTRA_TREE = {
       sNode.marketRules[smk[smk.length-1].key] = { live:'off' };       // last market off live everywhere
       if(chance(.5)) sNode.marketRules[smk[smk.length-2].key] = { live:'off', prematch:'off' };
     }
-    // default provider priority for a few partners
-    PARTNERS.forEach(function(p){
-      if(chance(.7)){
-        var provs = PROVIDERS.slice().sort(function(){return rng()-.5;}).slice(0, ri(2,4));
-        sNode.providers[p.id]=provs;
-      }
-    });
+    // feed providers start unassigned at every level (set via Feed Distribution)
 
     var cats = SPORT_TREE[sport];
     Object.keys(cats).forEach(function(cat, ci){
@@ -734,8 +728,6 @@ var EXTRA_TREE = {
           var tm = marketsFor(sport);
           tNode.marketRules[tm[ri(1,Math.min(5,tm.length-1))].key] = { live:'off' };
         }
-        // partner provider override on some tournaments
-        PARTNERS.forEach(function(p){ if(chance(.18)){ tNode.providers[p.id]=PROVIDERS.slice().sort(function(){return rng()-.5;}).slice(0,ri(2,3)); } });
 
         var teams = TEAMS[sport]||TEAMS["Football"];
         var nEvents = ri(4,9);
